@@ -7,3 +7,17 @@ scraping:
   follows_page_size: 20
 
 data_directory: /home/sc/python/instagraph-bot/instagraph_bot/data
+
+
+sleep:
+  after_logging_in:
+    minimum: 2
+    maximum: 4
+
+  after_getting_target_account:
+    minimum: 3
+    maximum: 5
+
+  after_getting_followed_account:
+    minimum: 0.5
+    maximum: 1.75

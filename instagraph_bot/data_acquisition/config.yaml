@@ -1,0 +1,9 @@
+
+instagram_auth:
+  username: simon__crowe
+  password: 0qpio1x3Y40xW1Z
+
+scraping:
+  follows_page_size: 20
+
+data_directory: /home/sc/python/instagraph-bot/instagraph_bot/data

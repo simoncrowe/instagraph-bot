@@ -102,3 +102,15 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# PyCharm
+.idea
+
+# instagraph-bot specific
+instagraph_bot/data/
+/data_aquisition/config.yaml
+
+# igramscraper
+/sessions/
+/instagraph_bot/sessions/
+/instagraph_bot/data_acquisition/sessions/

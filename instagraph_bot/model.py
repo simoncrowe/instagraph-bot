@@ -13,7 +13,7 @@ class AccountNode:
 
     @classmethod
     def from_igramscraper_account(cls, account: Account):
-        return cls(
+        return AccountNode(
             identifier=account.identifier,
             username=account.username,
             full_name=account.full_name,
@@ -86,7 +86,7 @@ class AccountNode:
         self._business_address_json = business_address_json
         self._connected_fb_page = connected_fb_page
 
-    def to_gml_safe_dict(self):
+    def to_gml_safe_dict(self) -> dict:
         return {
             'identifier': self.identifier,
             'username': self.username,

@@ -21,3 +21,7 @@ sleep:
   after_getting_followed_account:
     minimum: 0.5
     maximum: 1.75
+
+  after_adding_layer:
+    minimum: 3
+    maximum: 6

@@ -1,76 +1,25 @@
-from datetime import datetime
 import logging
-from os import path
-from typing import List, Dict
+from typing import List
 
 import click
-from igramscraper.instagram import Instagram
-from igramscraper.model.account import Account
 import networkx as nx
 import yaml
 
+from graph import order_account_nodes_by_importance
 from model import AccountNode
-from ig_util import get_authenticated_igramscraper, random_sleep
+from scraping import (
+    get_authenticated_igramscraper,
+    get_followed_accounts,
+    get_nodes_for_accounts,
+    random_sleep
+)
 
 from data_acquisition.util import get_graph_file_path
 
-IMPORTANCE_MEASURES = {
+IMPORTANCE_MEASURE_FUNCTIONS = {
     'IN_DEGREE_CENTRALITY': nx.in_degree_centrality,
     'EIGENVECTOR_CENTRALITY': nx.eigenvector_centrality,
 }
-
-
-def get_followed_accounts(
-        client: Instagram,
-        follower: AccountNode,
-        config: dict,
-        logger: logging.Logger,
-) -> List[Account]:
-    """Gets minimal information for accoutns followed by a given account."""
-    try:
-        logger.info(f'Getting accounts followed by "{follower.username}"...')
-        return client.get_following(
-            account_id=follower.identifier,
-            count=follower.follows_count,
-            page_size=config['scraping']['follows_page_size'],
-        )['accounts']
-    except Exception:
-        logger.exception(
-            f'Failed to get accounts followed by "{follower.username}".'
-        )
-        return []
-
-
-def get_nodes_for_accounts(
-        client: Instagram,
-        accounts: List[Account],
-        all_account_nodes: Dict[str, AccountNode],
-        config: dict,
-        logger: logging.Logger,
-) -> List[AccountNode]:
-    """Get nodes for accounts with full information."""
-    nodes = []
-    for account in accounts:
-        if account.identifier in all_account_nodes:
-            nodes.append(all_account_nodes[account.identifier])
-            logger.info(f'Retrieved existing data for "{account.username}".')
-        else:
-            logger.info(f'Getting user data for "{account.username}"...')
-            try:
-                account_node = AccountNode.from_igramscraper_account(
-                    client.get_account(account.username)
-                )
-                all_account_nodes[account_node.identifier] = account_node
-                nodes.append(account_node)
-            except Exception:
-                logger.exception(
-                    f'Failed to get user data for "{account.username}".'
-                )
-
-            logger.info(f'Node for "{account.username}" created.')
-            random_sleep(**config['sleep']['after_getting_followed_account'])
-
-    return nodes
 
 
 def add_nodes(
@@ -85,6 +34,7 @@ def add_nodes(
             logger.info(f'Created node "{node}".')
         else:
             logger.info(f'Node "{node}" already in graph.')
+
 
 def add_edges(
         graph: nx.DiGraph,
@@ -218,26 +168,20 @@ def save_following_graph(
                     destinations=nodes_following,
                     logger=logger
                 )
-            next_layer_targets.update(accounts_following)
+            next_layer_targets.update(nodes_following)
 
             save_graph_gml(graph=graph, path=graph_file_path, logger=logger)
 
         if layer >= prune_unimportant_accounts_after:
-
-            # TODO: Refactor into function.
-            account_importance = IMPORTANCE_MEASURES[importance_measure](graph)
-            important_account_identifiers = [
-                account_id for account_id, _ in sorted(
-                    account_importance,
-                    key=lambda _, importance: importance,
-                    reverse=True
-                )
-                if all_account_nodes[account_id] not in target_accounts
-            ][:max_important_accounts_kept]
-            target_accounts = [
-                all_account_nodes[identifier]
-                for identifier in important_account_identifiers
-            ]
+            target_accounts = order_account_nodes_by_importance(
+                graph=graph,
+                all_account_nodes=all_account_nodes,
+                candidate_account_nodes=next_layer_targets,
+                importance_measure=IMPORTANCE_MEASURE_FUNCTIONS[
+                    importance_measure
+                ],
+                logger=logger
+            )[:max_important_accounts_kept]
 
         else:
             target_accounts = next_layer_targets

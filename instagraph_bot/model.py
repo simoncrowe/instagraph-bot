@@ -1,15 +1,8 @@
-import json
-from typing import List
-
-
-from igramscraper.model.account import  Account
+from igramscraper.model.account import Account
 
 
 class AccountNode:
-    """Hashable representation of an Instagram account based on igramscraper.
-
-    Instances of this can be used for networkx nodes and added to sets.
-    """
+    """Representation of an Instagram account based on igramscraper."""
 
     @classmethod
     def from_igramscraper_account(cls, account: Account):
@@ -201,6 +194,7 @@ class AccountNode:
         return self._connected_fb_page
 
     def __hash__(self):
+        # TODO: Determine whether hashablity is actually useful
         return hash(self.identifier)
 
     def __str__(self):

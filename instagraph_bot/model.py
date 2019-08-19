@@ -194,7 +194,6 @@ class AccountNode:
         return self._connected_fb_page
 
     def __hash__(self):
-        # TODO: Determine whether hashablity is actually useful
         return hash(self.identifier)
 
     def __str__(self):

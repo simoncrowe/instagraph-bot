@@ -108,7 +108,8 @@ venv.bak/
 
 # instagraph-bot specific
 instagraph_bot/data/
-/data_aquisition/config.yaml
+instagraph_bot/logs/
+config.yaml
 
 # igramscraper
 /sessions/

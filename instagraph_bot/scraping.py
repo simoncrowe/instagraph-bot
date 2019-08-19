@@ -20,8 +20,10 @@ def get_authenticated_igramscraper(username: str, password: str):
     return client
 
 
-def random_sleep(minimum: float, maximum: float):
-    sleep(minimum + (random() * maximum))
+def random_sleep(minimum: float, maximum: float, logger: logging.Logger):
+    duration = minimum + (random() * maximum)
+    logger.info(f'Sleeping for {duration} seconds...')
+    sleep(duration)
 
 
 def get_followed_accounts(
@@ -72,6 +74,9 @@ def get_nodes_for_accounts(
                 )
 
             logger.info(f'Node for "{account.username}" created.')
-            random_sleep(**config['sleep']['after_getting_followed_account'])
+            random_sleep(
+                logger=logger,
+                **config['sleep']['after_getting_followed_account']
+            )
 
     return nodes

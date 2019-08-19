@@ -1,11 +1,10 @@
 import logging
-from typing import List
 
 import click
 import networkx as nx
 import yaml
 
-from graph import order_account_nodes_by_importance
+from graph import order_account_nodes_by_importance, add_nodes, add_edges
 from model import AccountNode
 from scraping import (
     get_authenticated_igramscraper,
@@ -14,47 +13,17 @@ from scraping import (
     random_sleep
 )
 
-from data_acquisition.util import get_graph_file_path
+from data_acquisition.util import (
+    get_base_filename,
+    get_graph_file_path,
+    initialise_logger,
+    save_graph_gml
+)
 
 IMPORTANCE_MEASURE_FUNCTIONS = {
     'IN_DEGREE_CENTRALITY': nx.in_degree_centrality,
     'EIGENVECTOR_CENTRALITY': nx.eigenvector_centrality,
 }
-
-
-def add_nodes(
-        graph: nx.DiGraph,
-        nodes: List[AccountNode],
-        logger: logging.Logger,
-):
-    """Adds edges to graph for followed accounts, returns added AccountNodes."""
-    for node in nodes:
-        if node.identifier not in graph:
-            graph.add_node(node.identifier, **node.to_gml_safe_dict())
-            logger.info(f'Created node "{node}".')
-        else:
-            logger.info(f'Node "{node}" already in graph.')
-
-
-def add_edges(
-        graph: nx.DiGraph,
-        source: AccountNode,
-        destinations: List[AccountNode],
-        logger: logging.Logger,
-):
-    for followed in destinations:
-        logger.info(f'Created edge from {source} to {followed}.')
-        graph.add_edge(
-            u_of_edge=source.identifier,
-            v_of_edge=followed.identifier
-        )
-
-
-def save_graph_gml(graph: nx.Graph, path: str, logger: logging.Logger):
-    logger.info('Serialising graph...')
-    # Couldn't resist the 'clever' lambda stringize nonsense below.
-    nx.write_gml(graph, path, lambda v: ('', v)[bool(v)])
-    logger.info(f'Graph saved to {path}')
 
 
 @click.command()
@@ -103,24 +72,31 @@ def save_following_graph(
     if depth < 1:
         raise ValueError('The depth argument should be 1 or greater.')
 
-    logging.basicConfig(level=log_level)
-    logger = logging.getLogger(
-        'instagraph_bot.data_acquisition.save_following_graph'
-    )
-
     with open('config.yaml') as file_obj:
         config = yaml.safe_load(file_obj)
 
+    base_file_name = get_base_filename(
+        username,
+        type='follows',
+        depth=depth,
+    )
+
+    logger = initialise_logger(
+        directory=config['logs_directory'],
+        name=base_file_name,
+        level=log_level,
+    )
+
     logger.info('Authenticating to Instagram...')
     ig_client = get_authenticated_igramscraper(**config['instagram_auth'])
-    random_sleep(**config['sleep']['after_logging_in'])
+    random_sleep(logger=logger, **config['sleep']['after_logging_in'])
 
     logger.info(f'Getting target account: {username}.')
     root_account = AccountNode.from_igramscraper_account(
         ig_client.get_account(username)
     )
     all_account_nodes = {root_account.identifier: root_account}
-    random_sleep(**config['sleep']['after_getting_target_account'])
+    random_sleep(logger=logger, **config['sleep']['after_getting_target_account'])
 
     graph = nx.DiGraph()
     layer = 0
@@ -130,16 +106,17 @@ def save_following_graph(
     target_accounts = [root_account]
 
     graph_file_path = get_graph_file_path(
-        username,
-        type='follows',
-        depth=depth,
-        data_dir=config['data_directory']
+        filename=base_file_name,
+        directory=config['data_directory'],
     )
     save_graph_gml(graph=graph, path=graph_file_path, logger=logger)
+
+    accounts_already_targeted = set()
 
     while layer < depth:
 
         next_layer_targets = set()
+        accounts_already_targeted.update(target_accounts)
 
         for account in target_accounts:
             accounts_following = get_followed_accounts(
@@ -170,13 +147,15 @@ def save_following_graph(
                 )
             next_layer_targets.update(nodes_following)
 
-            save_graph_gml(graph=graph, path=graph_file_path, logger=logger)
+            save_graph_gml(graph=graph, path=base_file_name, logger=logger)
 
         if layer >= prune_unimportant_accounts_after:
             target_accounts = order_account_nodes_by_importance(
                 graph=graph,
                 all_account_nodes=all_account_nodes,
-                candidate_account_nodes=next_layer_targets,
+                candidate_account_nodes=next_layer_targets.difference(
+                    accounts_already_targeted
+                ),
                 importance_measure=IMPORTANCE_MEASURE_FUNCTIONS[
                     importance_measure
                 ],
@@ -187,7 +166,7 @@ def save_following_graph(
             target_accounts = next_layer_targets
         logger.info(f'Layer {layer} complete.')
         layer += 1
-        random_sleep(**config['sleep']['after_adding_layer'])
+        random_sleep(logger=logger, **config['sleep']['after_adding_layer'])
 
     logger.info('Scraping complete.')
 

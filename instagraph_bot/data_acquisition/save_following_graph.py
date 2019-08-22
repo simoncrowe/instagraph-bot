@@ -1,10 +1,16 @@
 import logging
+from typing import Set
 
 import click
 import networkx as nx
 import yaml
 
-from graph import order_account_nodes_by_importance, add_nodes, add_edges
+from graph import (
+    add_edges,
+    add_nodes,
+    order_account_nodes_by_importance,
+    get_account_nodes_from_graph,
+)
 from model import AccountNode
 from scraping import (
     get_authenticated_igramscraper,
@@ -17,6 +23,7 @@ from data_acquisition.util import (
     get_base_filename,
     get_graph_file_path,
     initialise_logger,
+    load_graph_gml,
     save_graph_gml
 )
 
@@ -56,15 +63,28 @@ IMPORTANCE_MEASURE_FUNCTIONS = {
     is_flag=True,
     help='Exclude the root node (account) and edges to accounts it follows.'
 )
+@click.option(
+    '--existing-graph-file',
+    '-e',
+    'existing_graph_file_path',
+    type=str,
+    default=None,
+    help=(
+        'The path to an incomplete GML file to load. '
+        'This allows one to quickly pick up where one left off '
+        'with fewer HTTP requests. '
+        '(This works with directed graphs because adding edges is idempotent.)'
+    )
+)
 def save_following_graph(
         username: str,
         depth: int,
-        log_level,
-        prune_unimportant_accounts_after,
-        max_important_accounts_kept,
-        importance_measure,
-        exclude_first_layer,
-
+        log_level: str,
+        prune_unimportant_accounts_after: int,
+        max_important_accounts_kept: int,
+        importance_measure: str,
+        exclude_first_layer: bool,
+        existing_graph_file_path: str,
 ):
     """Scrapes Instagram for a graph of users followed by a user
      and those they follow etc.
@@ -89,29 +109,40 @@ def save_following_graph(
 
     logger.info('Authenticating to Instagram...')
     ig_client = get_authenticated_igramscraper(**config['instagram_auth'])
-    random_sleep(logger=logger, **config['sleep']['after_logging_in'])
+    random_sleep(logger=logger, **config['sleep_ranges']['after_logging_in'])
 
     logger.info(f'Getting target account: {username}.')
     root_account = AccountNode.from_igramscraper_account(
         ig_client.get_account(username)
     )
-    all_account_nodes = {root_account.identifier: root_account}
-    random_sleep(logger=logger, **config['sleep']['after_getting_target_account'])
+    random_sleep(
+        logger=logger,
+        **config['sleep_ranges']['after_getting_target_account']
+    )
 
-    graph = nx.DiGraph()
+    if existing_graph_file_path:
+        graph = load_graph_gml(existing_graph_file_path, logger)
+    else:
+        graph = nx.DiGraph()
+
+    all_account_nodes = {
+        account_node.identifier: account_node for account_node
+        in get_account_nodes_from_graph(graph, logger)
+    }
+
+    accounts_already_targeted = set()
+
     layer = 0
     if not exclude_first_layer:
         # Ensure that the root node is in the graph.
-        graph.add_node(root_account.identifier, **root_account.to_gml_safe_dict())
+        graph.add_node(root_account.identifier, **root_account.to_camelcase_safe_dict())
     target_accounts = [root_account]
 
     graph_file_path = get_graph_file_path(
         filename=base_file_name,
         directory=config['data_directory'],
     )
-    save_graph_gml(graph=graph, path=graph_file_path, logger=logger)
-
-    accounts_already_targeted = set()
+    save_graph_gml(graph=graph, filepath=graph_file_path, logger=logger)
 
     while layer < depth:
 
@@ -147,7 +178,7 @@ def save_following_graph(
                 )
             next_layer_targets.update(nodes_following)
 
-            save_graph_gml(graph=graph, path=base_file_name, logger=logger)
+            save_graph_gml(graph=graph, filepath=graph_file_path, logger=logger)
 
         if layer >= prune_unimportant_accounts_after:
             target_accounts = order_account_nodes_by_importance(
@@ -166,7 +197,10 @@ def save_following_graph(
             target_accounts = next_layer_targets
         logger.info(f'Layer {layer} complete.')
         layer += 1
-        random_sleep(logger=logger, **config['sleep']['after_adding_layer'])
+        random_sleep(
+            logger=logger,
+            **config['sleep_ranges']['after_adding_layer']
+        )
 
     logger.info('Scraping complete.')
 

@@ -4,32 +4,30 @@ from igramscraper.model.account import Account
 class AccountNode:
     """Representation of an Instagram account based on igramscraper."""
 
-    @classmethod
-    def from_igramscraper_account(cls, account: Account):
-        return AccountNode(
-            identifier=account.identifier,
-            username=account.username,
-            full_name=account.full_name,
-            profile_pic_url=account.profile_pic_url,
-            profile_pic_url_hd=account.profile_pic_url_hd,
-            biography=account.biography,
-            external_url=account.external_url,
-            follows_count=account.follows_count,
-            followed_by_count=account.followed_by_count,
-            media_count=account.media_count,
-            is_private=account.is_private,
-            is_verified=account.is_verified,
-            country_block=account.country_block,
-            has_channel=account.has_channel,
-            highlight_reel_count=account.highlight_reel_count,
-            is_business_account=account.is_business_account,
-            is_joined_recently=account.is_joined_recently,
-            business_category_name=account.business_category_name,
-            business_email=account.business_email,
-            business_phone_number=account.business_phone_number,
-            business_address_json=account.business_address_json,
-            connected_fb_page=account.connected_fb_page,
-        )
+    _camelcase_to_snake_case_attribute_names_map = {
+        'identifier': 'identifier',
+        'username': 'username',
+        'fullName': 'full_name',
+        'profilePicUrl': 'profile_pic_url',
+        'profilePicUrlHd': 'profile_pic_url_hd',
+        'biography': 'biography',
+        'externalUrl': 'external_url',
+        'followsCount': 'follows_count',
+        'followedByCount': 'followed_by_count',
+        'mediaCount': 'media_count',
+        'isPrivate': 'is_private',
+        'isVerified': 'is_verified',
+        'countryBlock': 'country_block',
+        'hasChannel': 'has_channel',
+        'highlightReelCount': 'highlight_reel_count',
+        'isBusinessAccount': 'is_business_account',
+        'isJoinedRecently': 'is_joined_recently',
+        'businessCategoryName': 'business_category_name',
+        'businessEmail': 'business_email',
+        'businessPhoneNumber': 'business_phone_number',
+        'businessAddressJson': 'business_address_json',
+        'connectedFbPage': 'connected_fb_page',
+    }
 
     def __init__(
             self,
@@ -79,7 +77,53 @@ class AccountNode:
         self._business_address_json = business_address_json
         self._connected_fb_page = connected_fb_page
 
-    def to_gml_safe_dict(self) -> dict:
+    @classmethod
+    def from_igramscraper_account(cls, account: Account):
+        return AccountNode(
+            identifier=account.identifier,
+            username=account.username,
+            full_name=account.full_name,
+            profile_pic_url=account.profile_pic_url,
+            profile_pic_url_hd=account.profile_pic_url_hd,
+            biography=account.biography,
+            external_url=account.external_url,
+            follows_count=account.follows_count,
+            followed_by_count=account.followed_by_count,
+            media_count=account.media_count,
+            is_private=account.is_private,
+            is_verified=account.is_verified,
+            country_block=account.country_block,
+            has_channel=account.has_channel,
+            highlight_reel_count=account.highlight_reel_count,
+            is_business_account=account.is_business_account,
+            is_joined_recently=account.is_joined_recently,
+            business_category_name=account.business_category_name,
+            business_email=account.business_email,
+            business_phone_number=account.business_phone_number,
+            business_address_json=account.business_address_json,
+            connected_fb_page=account.connected_fb_page,
+        )
+
+    @classmethod
+    def from_camelcase_attributes(cls, **attributes):
+        return AccountNode(
+            **{
+                cls._get_snake_case_attribute_name(camelcase_name): value
+                for camelcase_name, value in attributes.items()
+            }
+        )
+
+    @classmethod
+    def _get_snake_case_attribute_name(cls, camelcase_attribute_name:str) -> str:
+        return cls._camelcase_to_snake_case_attribute_names_map[
+            camelcase_attribute_name
+        ]
+
+    @classmethod
+    def get_camelcase_attribute_names(cls):
+        return list(cls._camelcase_to_snake_case_attribute_names_map.keys())
+
+    def to_camelcase_safe_dict(self) -> dict:
         return {
             'identifier': self.identifier,
             'username': self.username,

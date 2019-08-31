@@ -108,13 +108,13 @@ class AccountNode:
     def from_camelcase_attributes(cls, **attributes):
         return AccountNode(
             **{
-                cls._get_snake_case_attribute_name(camelcase_name): value
+                cls._snake_case_attribute_name(camelcase_name): value
                 for camelcase_name, value in attributes.items()
             }
         )
 
     @classmethod
-    def _get_snake_case_attribute_name(cls, camelcase_attribute_name:str) -> str:
+    def _snake_case_attribute_name(cls, camelcase_attribute_name:str) -> str:
         return cls._camelcase_to_snake_case_attribute_names_map[
             camelcase_attribute_name
         ]
@@ -123,7 +123,7 @@ class AccountNode:
     def get_camelcase_attribute_names(cls):
         return list(cls._camelcase_to_snake_case_attribute_names_map.keys())
 
-    def to_camelcase_safe_dict(self) -> dict:
+    def to_camelcase_dict(self) -> dict:
         return {
             'identifier': self.identifier,
             'username': self.username,

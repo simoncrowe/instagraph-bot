@@ -25,15 +25,16 @@ def get_authenticated_igramscraper(username: str, password: str):
 
 
 def random_sleep(minimum: float, maximum: float, logger: logging.Logger):
-    duration = round(minimum + (random() * maximum), 2)
+    duration = round(minimum + (random() * (maximum - minimum)), 2)
     logger.info(f'Sleeping for {duration} seconds...')
     sleep(duration)
 
 
 def exponential_sleep(exponent: int, config: Dict, logger: logging.Logger):
-    duration = (
-            config['exponential_sleep_base'] **
-            (config['exponential_sleep_offset'] + exponent)
+    duration = round(
+        config['exponential_sleep_base'] **
+        (config['exponential_sleep_offset'] + exponent),
+        2
     )
     logger.info(f'Sleeping for {duration} seconds...')
     sleep(duration)
@@ -57,15 +58,24 @@ def get_followed_accounts(
             follower = AccountNode.from_igramscraper_account(
                 client.get_account(follower.username)
             )
-
+            random_sleep(
+                logger=logger,
+                **config['sleep_ranges']['after_getting_account_data']
+            )
             logger.info(
                 f'Getting accounts followed by "{follower.username}"...'
             )
-            return client.get_following(
+
+            accounts_following = client.get_following(
                 account_id=follower.identifier,
                 count=follower.follows_count,
                 page_size=config['scraping']['follows_page_size'],
             )['accounts']
+            random_sleep(
+                logger=logger,
+                **config['sleep_ranges']['after_getting_followed_accounts']
+            )
+            return accounts_following
 
         except InstagramException as exception:
 
@@ -85,7 +95,7 @@ def get_followed_accounts(
                 )
                 return []
 
-        except InstagramNotFoundException:
+        except Exception:
             logger.exception(
                 f'Failed to get accounts followed by "{follower.username}".'
             )
@@ -142,8 +152,9 @@ def get_node_for_account(
                 logger.info(f'Node for "{account.username}" created.')
                 random_sleep(
                     logger=logger,
-                    **config['sleep_ranges']['after_getting_followed_account']
+                    **config['sleep_ranges']['after_getting_account_data']
                 )
+                return account_node
 
             except InstagramException as exception:
 
@@ -163,7 +174,7 @@ def get_node_for_account(
                     )
                     return None
 
-            except InstagramNotFoundException:
+            except Exception:
                 logger.exception(
                     f'Failed to get accounts followed by "{account.username}".'
                 )

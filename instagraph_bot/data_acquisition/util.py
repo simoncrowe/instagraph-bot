@@ -1,13 +1,7 @@
 import logging
-from datetime import datetime
 from os import path
 
 import networkx as nx
-
-
-def get_base_filename(username: str, type: str, depth: int):
-    file_friendly_datetime = datetime.now().strftime('%Y-%m-%d_%H%M')
-    return f'{file_friendly_datetime}_{username}_{type}_{depth}'
 
 
 def initialise_logger(directory: str, name: str, level: str) -> logging.Logger:

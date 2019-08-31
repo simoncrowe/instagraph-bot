@@ -8,6 +8,12 @@ import networkx as nx
 from model import AccountNode
 
 
+IMPORTANCE_MEASURE_FUNCTIONS = {
+    'IN_DEGREE_CENTRALITY': nx.in_degree_centrality,
+    'EIGENVECTOR_CENTRALITY': nx.eigenvector_centrality,
+}
+
+
 def order_account_nodes_by_importance(
         graph: nx.DiGraph,
         all_account_nodes: Dict[str, AccountNode],
@@ -42,7 +48,7 @@ def add_nodes(
     """Adds edges to graph for followed accounts, returns added AccountNodes."""
     for node in nodes:
         if node.identifier not in graph:
-            graph.add_node(node.identifier, **node.to_camelcase_safe_dict())
+            graph.add_node(node.identifier, **node.to_camelcase_dict())
             logger.info(f'Added  "{node}" to graph.')
         else:
             logger.info(f'Node "{node}" already in graph.')
@@ -62,10 +68,10 @@ def add_edges(
         )
 
 
-def get_account_nodes_from_graph(
+def account_nodes_from_graph(
         graph: nx.DiGraph,
         logger: logging.Logger
-) -> Set[AccountNode]:
+) -> List[AccountNode]:
     all_nodes_attributes = {}
     logger.info('Attempting to get node attributes from graph...')
 
@@ -76,11 +82,9 @@ def get_account_nodes_from_graph(
             node_attributes = all_nodes_attributes.setdefault(node_id, {})
             node_attributes[attribute_name] = attribute_value
 
-    account_nodes = {
+    account_nodes = [
         AccountNode.from_camelcase_attributes(**attributes)
         for attributes in all_nodes_attributes.values()
-    }
+    ]
     logger.info(f'Loaded {len(account_nodes)} AccountNodes from graph.')
     return account_nodes
-
-

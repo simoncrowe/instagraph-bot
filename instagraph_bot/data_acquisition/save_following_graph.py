@@ -1,5 +1,4 @@
-import logging
-from typing import Set
+from datetime import datetime
 
 import click
 import networkx as nx
@@ -9,8 +8,8 @@ from graph import (
     add_edges,
     add_nodes,
     order_account_nodes_by_importance,
-    get_account_nodes_from_graph,
-)
+    account_nodes_from_graph,
+    IMPORTANCE_MEASURE_FUNCTIONS)
 from model import AccountNode
 from scraping import (
     get_authenticated_igramscraper,
@@ -20,17 +19,11 @@ from scraping import (
 )
 
 from data_acquisition.util import (
-    get_base_filename,
     get_graph_file_path,
     initialise_logger,
     load_graph_gml,
     save_graph_gml
 )
-
-IMPORTANCE_MEASURE_FUNCTIONS = {
-    'IN_DEGREE_CENTRALITY': nx.in_degree_centrality,
-    'EIGENVECTOR_CENTRALITY': nx.eigenvector_centrality,
-}
 
 
 @click.command()
@@ -95,11 +88,8 @@ def save_following_graph(
     with open('config.yaml') as file_obj:
         config = yaml.safe_load(file_obj)
 
-    base_file_name = get_base_filename(
-        username,
-        type='follows',
-        depth=depth,
-    )
+    file_friendly_datetime = datetime.now().strftime('%Y-%m-%d_%H%M')
+    base_file_name = f'{file_friendly_datetime}_{username}_{type}_{depth}'
 
     logger = initialise_logger(
         directory=config['logs_directory'],
@@ -127,7 +117,7 @@ def save_following_graph(
 
     all_account_nodes = {
         account_node.identifier: account_node for account_node
-        in get_account_nodes_from_graph(graph, logger)
+        in account_nodes_from_graph(graph, logger)
     }
 
     accounts_already_targeted = set()
@@ -135,7 +125,7 @@ def save_following_graph(
     layer = 0
     if not exclude_first_layer:
         # Ensure that the root node is in the graph.
-        graph.add_node(root_account.identifier, **root_account.to_camelcase_safe_dict())
+        graph.add_node(root_account.identifier, **root_account.to_camelcase_dict())
     target_accounts = [root_account]
 
     graph_file_path = get_graph_file_path(

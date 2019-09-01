@@ -8,7 +8,7 @@ import networkx as nx
 from model import AccountNode
 
 
-IMPORTANCE_MEASURE_FUNCTIONS = {
+CENTRALITY_METRIC_FUNCTIONS = {
     'IN_DEGREE_CENTRALITY': nx.in_degree_centrality,
     'EIGENVECTOR_CENTRALITY': nx.eigenvector_centrality,
 }

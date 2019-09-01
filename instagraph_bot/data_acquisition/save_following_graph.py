@@ -9,7 +9,7 @@ from graph import (
     add_nodes,
     order_account_nodes_by_importance,
     account_nodes_from_graph,
-    IMPORTANCE_MEASURE_FUNCTIONS)
+    CENTRALITY_METRIC_FUNCTIONS)
 from model import AccountNode
 from scraping import (
     get_authenticated_igramscraper,
@@ -89,11 +89,12 @@ def save_following_graph(
         config = yaml.safe_load(file_obj)
 
     file_friendly_datetime = datetime.now().strftime('%Y-%m-%d_%H%M')
-    base_file_name = f'{file_friendly_datetime}_{username}_{type}_{depth}'
+    base_file_name = f'{file_friendly_datetime}_{username}-follows-{depth}'
 
     logger = initialise_logger(
         directory=config['logs_directory'],
         name=base_file_name,
+        module='instagraph_bot.data_acquisition.save_following_graph',
         level=log_level,
     )
 
@@ -177,7 +178,7 @@ def save_following_graph(
                 candidate_account_nodes=next_layer_targets.difference(
                     accounts_already_targeted
                 ),
-                importance_measure=IMPORTANCE_MEASURE_FUNCTIONS[
+                importance_measure=CENTRALITY_METRIC_FUNCTIONS[
                     importance_measure
                 ],
                 logger=logger

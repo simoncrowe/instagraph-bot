@@ -6,18 +6,17 @@ from typing import List
 
 import click
 import networkx as nx
+import numpy as np
 import pandas as pd
-from sklearn.cluster import KMeans
+from sklearn  import cluster
+from sklearn import preprocessing
 
-from graph import account_nodes_from_graph, IMPORTANCE_MEASURE_FUNCTIONS
-from model import AccountNode
+from graph import account_nodes_from_graph, CENTRALITY_METRIC_FUNCTIONS
 
-from data_acquisition.util import initialise_logger
+from data_acquisition.util import initialise_logger, save_dataframe_csv
 
 
-CLUSTERING_CLASSES = {
-    'K_MEANS': KMeans,
-}
+CLUSTERING_CLASSES = {'K_MEANS': cluster.KMeans}
 
 
 @click.command()
@@ -46,8 +45,23 @@ CLUSTERING_CLASSES = {
 @click.option(
     '--accounts-retained',
     '-r',
-    default=math.inf,
-    help='Number of important accounts retained.'
+    type=int,
+    default=-1,
+    help=(
+            'Number of important accounts retained. '
+            '(Negative value means all are retained.)'
+    )
+)
+@click.option(
+    '--max-followers',
+    '-f',
+    type=int,
+    default=-1,
+    help=(
+            'The maximum number of followers of retained accounts. '
+            'This is intended as a crude means of removing outliers. '
+            '(A negative value means that there is no maximum.'
+    )
 )
 @click.option('--log-level', '-l', type=str, default='DEBUG')
 def cluster_accounts(
@@ -55,17 +69,22 @@ def cluster_accounts(
         clusters: int,
         clustering_algorithm: str,
         importance_measure: str,
-        accounts_retained: int or float,
+        accounts_retained: int,
+        max_followers: int,
         log_level: str
 ):
     with open('config.yaml') as file_obj:
         config = yaml.safe_load(file_obj)
 
-    base_file_name = f'{path.basename(graph_path)}_clustered'
+    base_file_name = (
+        f'{path.splitext(path.basename(graph_path))[0]}_'
+        f'{accounts_retained}-clustered-{clustering_algorithm}-{clusters}'
+    )
 
     logger = initialise_logger(
         directory=config['logs_directory'],
         name=base_file_name,
+        module='instagraph_bot.data_acquisition.cluster_accounts_from_graph',
         level=log_level,
     )
 
@@ -75,30 +94,48 @@ def cluster_accounts(
     node_index = [node['identifier'] for node in node_dicts]
     accounts_data = pd.DataFrame(node_dicts, index=node_index)
 
-    importance = IMPORTANCE_MEASURE_FUNCTIONS[importance_measure](graph)
-    importance_series = pd.Series(
+    importance = CENTRALITY_METRIC_FUNCTIONS[importance_measure](graph)
+    centrality_series = pd.Series(
         [importance[i] for i in node_index],
         index=node_index
     )
-    accounts_data['importance'] = importance_series
+    accounts_data['centrality'] = centrality_series
 
-    if accounts_retained is not math.inf:
+    # Negative value for max_followers mean that here is not maximum
+    if max_followers > -1:
+        accounts_data = accounts_data.loc[
+            accounts_data['followedByCount'] <= max_followers
+        ]
+
+    # Negative value for accounts_retained means that all are retained.
+    if accounts_retained > -1:
         accounts_data.sort_values(
-            by=['importance'],
+            by=['centrality'],
             inplace=True,
             ascending=False
         )
         accounts_data = accounts_data.iloc[:int(accounts_retained)]
 
-    account_data_params = accounts_data[
-        ('followsCount', 'followedByCount', 'importance')
-    ]
-    clustering_model = CLUSTERING_CLASSES[clustering_algorithm](n_clusters=clusters)
-    clustering_model.fit(
-        accounts_data
-    )
+    features = accounts_data[
+        ['followsCount', 'followedByCount', 'centrality']
+    ].to_numpy(dtype=np.float32)
 
-    accounts_data.to_csv('test.csv')
+    zero_one_scaler = preprocessing.MinMaxScaler()
+    scaled_features = zero_one_scaler.fit_transform(features)
+
+    model = CLUSTERING_CLASSES[clustering_algorithm](n_clusters=clusters)
+    model.fit(scaled_features)
+    cluster_labels = model.predict(scaled_features)
+
+    cluster_series = pd.Series(cluster_labels, index=accounts_data.index)
+    accounts_data['cluster'] = cluster_series
+
+    data_dir = config['data_directory']
+    save_dataframe_csv(
+        df=accounts_data,
+        filepath=path.join(data_dir, f'{base_file_name}.csv'),
+        logger=logger,
+    )
 
 
 if __name__ == '__main__':

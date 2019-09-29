@@ -1,0 +1,17 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+bot-scheduler = {editable = true,git = "https://github.com/simoncrowe/bot-scheduler.git",ref = "v1.0.0"}
+click = "==7.0"
+igramscraper = "==0.3.2"
+marshmallow = "==3.2.0"
+networkx = "==2.3"
+PyYAML = "==5.1.2"
+
+[requires]
+python_version = "3.7"

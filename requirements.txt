@@ -1,4 +1,0 @@
--e git+https://github.com/simoncrowe/bot-scheduler.git@v1.0.0#egg=bot-scheduler
-click==7.0
-igramscraper==0.3.2
-networkx==2.3

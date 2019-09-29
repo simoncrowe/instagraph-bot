@@ -13,7 +13,7 @@ from sklearn import preprocessing
 
 from graph import account_nodes_from_graph, CENTRALITY_METRIC_FUNCTIONS
 
-from data_acquisition.util import initialise_logger, save_dataframe_csv
+from scripts.util import initialise_logger, save_dataframe_csv
 
 
 CLUSTERING_CLASSES = {'K_MEANS': cluster.KMeans}
@@ -84,7 +84,7 @@ def cluster_accounts(
     logger = initialise_logger(
         directory=config['logs_directory'],
         name=base_file_name,
-        module='instagraph_bot.data_acquisition.cluster_accounts_from_graph',
+        module='instagraph_bot.scripts.cluster_accounts_from_graph',
         level=log_level,
     )
 

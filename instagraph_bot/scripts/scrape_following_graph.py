@@ -18,7 +18,7 @@ from scraping import (
     random_sleep
 )
 
-from data_acquisition.util import (
+from scripts.util import (
     get_graph_file_path,
     initialise_logger,
     load_graph_gml,
@@ -94,7 +94,7 @@ def save_following_graph(
     logger = initialise_logger(
         directory=config['logs_directory'],
         name=base_file_name,
-        module='instagraph_bot.data_acquisition.save_following_graph',
+        module='instagraph_bot.scripts.save_following_graph',
         level=log_level,
     )
 

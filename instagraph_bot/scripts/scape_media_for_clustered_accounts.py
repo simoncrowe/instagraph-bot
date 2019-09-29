@@ -2,6 +2,7 @@ import os
 
 import click
 import yaml
+import pandas as pd
 
 from scraping import (
     get_authenticated_igramscraper,
@@ -38,13 +39,15 @@ from scripts.util import initialise_logger
 @click.option(
     '--min-centrality',
     '-c',
-    type=str,
+    type=float,
     default=0,
     help='The minimum centrality of accounts for which you want media scraped.'
 )
 def save_following_graph(
         log_level: str,
         csv_file_path: str,
+        cluster_indices: str,
+        min_centrality: float,
 ):
     """Scrapes Instagram for media and comments for some or all clustered
     accounts in a CSV file.
@@ -66,11 +69,28 @@ def save_following_graph(
     )
 
     logger.info(f'Loading data from {data_directory_path}...')
+    accounts = pd.read_csv(csv_file_path)
+
+    if cluster_indices is not None:
+        cluster_indices = [int(i.strip()) for i in cluster_indices.split(',')]
+        accounts = accounts[accounts['cluster'].isin(cluster_indices)]
+
+    accounts = accounts[accounts['centrality'] >= min_centrality]
 
     logger.info('Authenticating to Instagram...')
     ig_client = get_authenticated_igramscraper(**config['instagram_auth'])
     random_sleep(logger=logger, **config['sleep_ranges']['after_logging_in'])
 
+    for account in accounts.itertuples():
+        logger.info(f'Getting media for {account.username}...')
+
+        media = ig_client.get_medias_by_user_id(
+            id=account.identifier,
+            count=config['scraping']['max_media_items_per_account']
+        )
+        for media_object in media:
+            pass
+            # TODO: add Selenium-based logic for grabbing all images & comments
 
 
 

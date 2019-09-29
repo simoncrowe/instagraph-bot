@@ -16,16 +16,16 @@ import pandas as pd
     help='CSV file containing clustered account data.'
 )
 def visualise_clustered_accounts(data_path):
-    data = pd.read_csv(data_path)
+    accounts = pd.read_csv(data_path)
 
     figure = plt.figure()
     axes = figure.add_subplot(111, projection='3d')
 
-    cluster_nums = data['cluster'].unique()
+    cluster_nums = accounts['cluster'].unique()
     cluster_hues = np.arange(0, 1, 1 / len(cluster_nums))
 
     for cluster_num in cluster_nums:
-        cluster_data = data.loc[data['cluster'] == cluster_num]
+        cluster_data = accounts[accounts['cluster'] == cluster_num]
         red, green, blue = hls_to_rgb(cluster_hues[cluster_num], 0.4, 0.95)
         axes.scatter(
             xs=cluster_data['followedByCount'].to_numpy(),

@@ -5,13 +5,10 @@ from typing import Callable, Dict, List
 
 from igramscraper.instagram import Instagram
 from igramscraper.model.account import Account
-from igramscraper.exception import (
-    InstagramException,
-    InstagramNotFoundException
-)
+from igramscraper.exception import InstagramException
 
 from time import sleep
-from random import random
+from random import random, randint
 
 from model import AccountNode
 
@@ -113,19 +110,43 @@ def get_nodes_for_accounts(
 ) -> List[AccountNode]:
     """Get nodes for accounts with full information."""
     nodes = []
+    scraped_count = 0
+    max_scraped_this_round = randint(
+        config['accounts_scraped_per_round']['minimum'],
+        config['accounts_scraped_per_round']['maximum']
+    )
 
     for account in accounts:
-        nodes.append(
-            get_node_for_account(
-                client=client,
-                account=account,
-                all_account_nodes=all_account_nodes,
-                config=config,
-                logger=logger
-            )
+        node, scraping_needed = get_node_for_account(
+            client=client,
+            account=account,
+            all_account_nodes=all_account_nodes,
+            config=config,
+            logger=logger
         )
+        if scraping_needed:
+            scraped_count += 1
 
-    return list(filter(None, nodes))
+            if scraped_count < max_scraped_this_round:
+                random_sleep(
+                    **config['sleep_ranges']['after_getting_account_data'],
+                    logger=logger
+                )
+            else:
+                random_sleep(
+                    **config['sleep_ranges']['between_scraping_rounds'],
+                    logger=logger
+                )
+                scraped_count = 0
+                max_scraped_this_round = randint(
+                    config['accounts_scraped_per_round']['minimum'],
+                    config['accounts_scraped_per_round']['maximum']
+                )
+
+        if node:
+            nodes.append(node)
+
+    return nodes
 
 
 def get_node_for_account(
@@ -136,10 +157,12 @@ def get_node_for_account(
         logger: logging.Logger,
 ):
     if account.identifier in all_account_nodes:
+        scraping_needed = False
         logger.info(f'Retrieved existing data for "{account.username}".')
         account_node = all_account_nodes[account.identifier]
 
     else:
+        scraping_needed = True
         logger.info(f'Getting user data for "{account.username}"...')
         attempt_number = 1
 
@@ -150,11 +173,7 @@ def get_node_for_account(
                 )
                 all_account_nodes[account_node.identifier] = account_node
                 logger.info(f'Node for "{account.username}" created.')
-                random_sleep(
-                    logger=logger,
-                    **config['sleep_ranges']['after_getting_account_data']
-                )
-                return account_node
+                break
 
             except InstagramException as exception:
 
@@ -172,14 +191,16 @@ def get_node_for_account(
                     logger.exception(
                         f'Failed to get user data for "{account.username}".'
                     )
-                    return None
+                    account_node = None
+                    break
 
             except Exception:
                 logger.exception(
                     f'Failed to get accounts followed by "{account.username}".'
                 )
-                return None
+                account_node = None
+                break
 
             attempt_number += 1
 
-    return account_node
+    return account_node, scraping_needed

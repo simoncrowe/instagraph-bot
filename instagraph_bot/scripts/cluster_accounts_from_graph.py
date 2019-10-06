@@ -1,15 +1,12 @@
 
 import yaml
-import math
 from os import path
-from typing import List
 
 import click
 import networkx as nx
 import numpy as np
 import pandas as pd
-from sklearn  import cluster
-from sklearn import preprocessing
+from sklearn import cluster, preprocessing
 
 from graph import account_nodes_from_graph, CENTRALITY_METRIC_FUNCTIONS
 
@@ -60,7 +57,7 @@ CLUSTERING_CLASSES = {'K_MEANS': cluster.KMeans}
     help=(
             'The maximum number of followers of retained accounts. '
             'This is intended as a crude means of removing outliers. '
-            '(A negative value means that there is no maximum.'
+            '(A negative value means that there is no maximum.)'
     )
 )
 @click.option('--log-level', '-l', type=str, default='DEBUG')

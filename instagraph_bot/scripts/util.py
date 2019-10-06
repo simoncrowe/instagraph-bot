@@ -30,7 +30,7 @@ def get_graph_file_path(directory: str, filename: str):
 def save_graph_gml(graph: nx.Graph, filepath: str, logger: logging.Logger):
     logger.info('Serialising graph...')
     # Couldn't resist the 'clever' lambda stringize nonsense below.
-    nx.write_gml(graph, f'{filepath}.gml', lambda v: ('', v)[bool(v)])
+    nx.write_gml(graph, filepath, lambda v: ('', v)[bool(v)])
     logger.info(f'Graph saved to {filepath}.')
 
 

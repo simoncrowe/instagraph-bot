@@ -23,24 +23,35 @@ def initialise_logger(
     return logger
 
 
-def get_graph_file_path(directory: str, filename: str):
+def get_graph_file_path(directory: str, filename: str) -> str:
     return path.join(directory, f'{filename}.gml')
 
 
-def save_graph_gml(graph: nx.Graph, filepath: str, logger: logging.Logger):
+def save_graph_gml(
+        graph: nx.Graph,
+        filepath: str,
+        logger: logging.Logger
+) -> None:
     logger.info('Serialising graph...')
     # Couldn't resist the 'clever' lambda stringize nonsense below.
     nx.write_gml(graph, filepath, lambda v: ('', v)[bool(v)])
     logger.info(f'Graph saved to {filepath}.')
 
 
-def load_graph_gml(filepath: str, logger: logging.Logger):
+def load_graph_gml(
+        filepath: str,
+        logger: logging.Logger
+) -> nx.DiGraph:
     logger.info(f'Loading graph from {filepath}...')
     graph = nx.read_gml(filepath)
     logger.info('Graph file loaded.')
     return graph
 
 
-def save_dataframe_csv(df: pd.DataFrame, filepath: str, logger: logging.Logger):
+def save_dataframe_csv(
+        df: pd.DataFrame,
+        filepath: str,
+        logger: logging.Logger
+) -> None:
     df.to_csv(filepath)
     logger.info(f'DataFrame saved to {filepath}.')

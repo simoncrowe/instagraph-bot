@@ -126,7 +126,10 @@ def save_following_graph(
     layer = 0
     if not exclude_first_layer:
         # Ensure that the root node is in the graph.
-        graph.add_node(root_account.identifier, **root_account.to_camelcase_dict())
+        graph.add_node(
+            root_account.identifier,
+            **root_account.to_camelcase_dict()
+        )
     target_accounts = [root_account]
 
     graph_file_path = get_graph_file_path(

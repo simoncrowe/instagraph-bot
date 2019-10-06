@@ -115,4 +115,4 @@ config.yaml
 # igramscraper
 /sessions/
 /instagraph_bot/sessions/
-/scripts/sessions/
+/instagraph_bot/scripts/sessions/

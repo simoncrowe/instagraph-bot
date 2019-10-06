@@ -6,12 +6,16 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-bot-scheduler = {editable = true,git = "https://github.com/simoncrowe/bot-scheduler.git",ref = "v1.0.0"}
+bot-scheduler = {ref = "v1.0.0",git = "https://github.com/simoncrowe/bot-scheduler.git",editable = true}
 click = "==7.0"
 igramscraper = "==0.3.2"
 marshmallow = "==3.2.0"
 networkx = "==2.3"
 PyYAML = "==5.1.2"
+pandas = "==0.25.1"
+scikit-learn = "==0.21.3"
+matplotlib = "==3.1.1"
+
 
 [requires]
 python_version = "3.7"

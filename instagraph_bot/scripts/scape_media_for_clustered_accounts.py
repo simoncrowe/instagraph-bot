@@ -93,6 +93,5 @@ def save_following_graph(
             # TODO: add Selenium-based logic for grabbing all images & comments
 
 
-
-if __name__== '__main__':
+if __name__ == '__main__':
     save_following_graph()

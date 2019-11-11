@@ -12,6 +12,7 @@ from graph import (
     CENTRALITY_METRIC_FUNCTIONS)
 from model import AccountNode
 from scraping import (
+    get_account,
     get_authenticated_igramscraper,
     get_followed_accounts,
     get_nodes_for_accounts,
@@ -104,12 +105,11 @@ def save_following_graph(
 
     logger.info(f'Getting target account: {username}.')
     root_account = AccountNode.from_igramscraper_account(
-        ig_client.get_account(username)
+        get_account(username=username, client=ig_client,
+                    config=config, logger=logger)
     )
-    random_sleep(
-        logger=logger,
-        **config['sleep_ranges']['after_getting_target_account']
-    )
+    random_sleep(logger=logger,
+                 **config['sleep_ranges']['after_getting_target_account'])
 
     if existing_graph_file_path:
         graph = load_graph_gml(existing_graph_file_path, logger)
@@ -132,10 +132,8 @@ def save_following_graph(
         )
     target_accounts = [root_account]
 
-    graph_file_path = get_graph_file_path(
-        filename=base_file_name,
-        directory=config['data_directory'],
-    )
+    graph_file_path = get_graph_file_path(filename=base_file_name,
+                                          directory=config['data_directory'])
     save_graph_gml(graph=graph, filepath=graph_file_path, logger=logger)
 
     while layer < depth:
@@ -158,11 +156,7 @@ def save_following_graph(
                 logger=logger
             )
 
-            add_nodes(
-                graph=graph,
-                nodes=nodes_following,
-                logger=logger
-            )
+            add_nodes(graph=graph, nodes=nodes_following, logger=logger)
             if not (exclude_first_layer and layer == 0):
                 add_edges(
                     graph=graph,
@@ -191,10 +185,8 @@ def save_following_graph(
             target_accounts = next_layer_targets
         logger.info(f'Layer {layer} complete.')
         layer += 1
-        random_sleep(
-            logger=logger,
-            **config['sleep_ranges']['after_adding_layer']
-        )
+        random_sleep(logger=logger,
+                     **config['sleep_ranges']['after_adding_layer'])
 
     logger.info('Scraping complete.')
 

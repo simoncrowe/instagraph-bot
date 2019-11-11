@@ -1,7 +1,7 @@
 """Instagram scraping logic."""
 
 import logging
-from typing import Callable, Dict, List
+from typing import Dict, List
 
 from igramscraper.instagram import Instagram
 from igramscraper.model.account import Account
@@ -35,6 +35,41 @@ def exponential_sleep(exponent: int, config: Dict, logger: logging.Logger):
     )
     logger.info(f'Sleeping for {duration} seconds...')
     sleep(duration)
+
+
+def get_account(
+        username: str,
+        client: Instagram,
+        config: dict,
+        logger: logging.Logger,
+):
+    attempt = 1
+    while True:
+        try:
+            logger.info(
+                f'Getting account: {username}'
+            )
+            return client.get_account(username)
+
+        except InstagramException as exception:
+
+            if '429' in str(exception):
+                logger.exception(
+                    f'Prevented from getting {username} by rate limiting.'
+                )
+                exponential_sleep(
+                    exponent=attempt,
+                    config=config,
+                    logger=logger
+                )
+            else:
+                logger.exception(f'Failed to get "{username}".')
+                # Rather than returning None, or sleeping on
+                # unexpected exceptions, let the calling function catch
+                # the exception if desired.
+                raise
+
+        attempt += 1
 
 
 def get_followed_accounts(

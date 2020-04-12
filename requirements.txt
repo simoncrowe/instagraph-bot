@@ -1,0 +1,11 @@
+-e git://github.com/simoncrowe/bot-scheduler.git#egg=bot-scheduler
+-e git://github.com/realsirjoe/instagram-scraper.git@2d5fb53f1a92add34a8dbcf129708ed15d478190#egg=instagram-scraper
+marshmallow==3.2.0
+click==7.0
+networkx==2.3
+PyYAML==5.1.2
+pandas==0.25.1
+scikit-learn==0.21.3
+selenium==3.141.0
+matplotlib==3.1.1
+

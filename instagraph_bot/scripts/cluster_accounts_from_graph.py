@@ -93,7 +93,7 @@ def cluster_accounts(
 
     importance = CENTRALITY_METRIC_FUNCTIONS[importance_measure](graph)
     centrality_series = pd.Series(
-        [importance[i] for i in node_index],
+        (importance[i] for i in node_index),
         index=node_index
     )
     accounts_data['centrality'] = centrality_series
@@ -126,10 +126,12 @@ def cluster_accounts(
 
     cluster_series = pd.Series(cluster_labels, index=accounts_data.index)
     accounts_data['cluster'] = cluster_series
+    
+    sorted_data = accounts_data.sort_values(by="centrality", ascending=False)
 
     data_dir = config['data_directory']
     save_dataframe_csv(
-        df=accounts_data,
+        df=sorted_data,
         filepath=path.join(data_dir, f'{base_file_name}.csv'),
         logger=logger,
     )

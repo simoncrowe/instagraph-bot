@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 from os import path
 from typing import Generator, Tuple
@@ -5,6 +6,7 @@ import random
 
 from bs4 import BeautifulSoup
 import click
+from igramscraper.instagram import Instagram
 import pandas as pd
 import requests
 import yaml
@@ -31,12 +33,12 @@ COMMON_USER_AGENTS = (
 )
 
 
-def media_json_from_html(html: BeautifulSoup):
-    for script in json_from_scripts(html.find('script'):
-        for line in scripts.content:
+def media_json_from_html(html: BeautifulSoup) -> str or None:
+    for script in html.find_all('script'):
+        for line in script.contents:
             # The script in question is a single JS assignment statement
             if 'window._sharedData = ' in line:
-            yield json.loads(line[20:-1])
+                return json.loads(line[20:-1])
 
 
 def images(data: dict, user_id: str) -> Generator[Tuple[str, str], None, None]:
@@ -54,7 +56,7 @@ def images(data: dict, user_id: str) -> Generator[Tuple[str, str], None, None]:
         yield "{user_id}/images/{image_id}/url", url
 
 
-def comment_data(edges) -> Generator[dict]:
+def comment_data(edges) -> Generator[dict, None, None]:
     for edge in edges:
         yield {
              "id": edge["node"]["id"],
@@ -78,28 +80,30 @@ def caption(data: dict, user_id: str) -> Tuple:
         return f"{user_id}/images/{image_id}/capton.json", json.dumps(caption)
 
 
-def save_web_image(path: str, url: str, user_agent: str):
+def save_web_image(path: str, url: str, user_agent: str, config: dict):
     response = requests.get(url, headers={"User-agent": user_agent})
     with open(path, "wb") as file_handle:
        file_handle.write(response.content)
 
-    
+    random_sleep(logger=logger, **config['sleep_ranges']['after_saving_image'])
+
+
 def save_text(path: str, text: str):
     with open(path, "w") as file_handle:
         file_handle.write(text)
 
 
-def scrape_shortlink_media(url, user_id, data_path):
+def scrape_shortlink_media(url:str, user_id: str, data_path: str, config: dict):
     user_agent = random.choice(COMMON_USER_AGENTS)
-    reponse = requests.get(url, headers={"User-Agent": user_agent})
+    response = requests.get(url, headers={"User-Agent": user_agent})
     soup = BeautifulSoup(response.text)
 
     all_data = media_json_from_html(soup)
     media_data = all_data['entry_data']['PostPage'][0]['graphql']['shortcode_media']
 
-    for image_path, image_url in images(media_data, user_id)
+    for image_path, image_url in images(media_data, user_id):
         full_image_path = path.join(data_path, image_path)
-        save_web_image(full_image_path, image_url)
+        save_web_image(full_image_path, image_url, user_agent, config)
 
     comments_path, comments_json = comments(media_data, user_id)
     full_comments_path = path.join(data_path, comments_path)
@@ -113,7 +117,7 @@ def scrape_shortlink_media(url, user_id, data_path):
 @click.command()
 @click.option('--log-level', '-l', type=str, default='DEBUG')
 @click.option(
-    '--csv-file',
+    '--cSv-file',
     '-f',
     'csv_file_path',
     type=str,
@@ -157,9 +161,11 @@ def save_media(
         config['data_directory'], 'users',
     )
 
+    file_friendly_datetime = datetime.now().strftime('%Y-%m-%d_%H%M') 
+    input_filename, _ = path.splitext(path.basename(csv_file_path))
     logger = initialise_logger(
         directory=config['logs_directory'],
-        name=data_directory_name,
+        name=f'{file_friendly_datetime}_scrape-media_{input_filename}',
         module='instagraph_bot.scripts.scrape_media_for_clustered_accounts',
         level=log_level,
     )
@@ -174,19 +180,34 @@ def save_media(
     accounts = accounts[accounts['centrality'] >= min_centrality]
 
     logger.info('Authenticating to Instagram...')
-    ig_client = get_authenticated_igramscraper(**config['instagram_auth'])
+    ig_client = Instagram()
     random_sleep(logger=logger, **config['sleep_ranges']['after_logging_in'])
+    
+    accounts_per_round = random.randint(
+        config["accounts_scraped_per_round"]["minimum"],
+        config["accounts_scraped_per_round"]["maximum"]
+    )
 
-    for account in accounts.itertuples():
-        logger.info(f'Getting media for {account.username}...')
+    for index, account in enumerate(accounts.itertuples(), 1):
+        try: 
+            if index % accounts_per_round == 0:
+                random_sleep(logger=logger, **config['sleep_ranges']['between_scraping_rounds'])
+                accounts_per_round = random.randint(
+                    config["accounts_scraped_per_round"]["minimum"],
+                    config["accounts_scraped_per_round"]["maximum"]
+                )
 
-        media = ig_client.get_medias_by_user_id(
-            id=account.identifier,
-            count=config['scraping']['max_media_items_per_account']
-        )
-        for media_object in media:
-            scrape_shortlink_media(media_object.link, account.id, data_directory_path)
-
+            logger.info(f'Getting media for {account.username}...')
+            media = ig_client.get_medias_by_user_id(
+                id=account.identifier,
+                count=config['scraping']['max_media_items_per_account']
+            )
+            for media_object in media:
+                scrape_shortlink_media(media_object.link, account.identifier, data_directory_path, config)
+            random_sleep(logger=logger, **config['sleep_ranges']['after_scraping_user_media'])
+        except: 
+            logger.exception(f"Scraping failed for account {account.username}")
+            continue
 
 if __name__ == '__main__':
     save_media()

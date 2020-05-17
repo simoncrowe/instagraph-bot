@@ -78,6 +78,17 @@ def caption(data: dict, user_id: str) -> Tuple:
         return f"{user_id}/images/{image_id}/capton.json", json.dumps(caption)
 
 
+def save_web_image(path: str, url: str, user_agent: str):
+    response = requests.get(url, headers={"User-agent": user_agent})
+    with open(path, "wb") as file_handle:
+       file_handle.write(response.content)
+
+    
+def save_text(path: str, text: str):
+    with open(path, "w") as file_handle:
+        file_handle.write(text)
+
+
 def scrape_shortlink_media(url, user_id, data_path):
     user_agent = random.choice(COMMON_USER_AGENTS)
     reponse = requests.get(url, headers={"User-Agent": user_agent})

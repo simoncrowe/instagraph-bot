@@ -8,15 +8,13 @@ import random
 
 from bs4 import BeautifulSoup
 import click
+from igramscraper.exception import InstagramException
 from igramscraper.instagram import Instagram
 import pandas as pd
 import requests
 import yaml
 
-from scraping import (
-    get_authenticated_igramscraper,
-    random_sleep
-)
+from scraping import random_sleep
 
 from scripts.util import initialise_logger
 
@@ -55,7 +53,7 @@ def images(data: dict, user_id: str) -> Generator[Tuple[str, str], None, None]:
     else:
         image_id = data["id"]
         url = data["display_url"]
-        yield "{user_id}/images/{image_id}/image.jpg", url
+        yield f"{user_id}/images/{image_id}/image.jpg", url
 
 
 def comment_data(edges) -> list:
@@ -64,6 +62,10 @@ def comment_data(edges) -> list:
              "id": edge["node"]["id"],
              "text": edge["node"]["text"],
              "owner_id": edge["node"]["owner"]["id"],
+             "created_at": edge["node"]["created_at"],
+             "likes_count": edge["node"].get("edge_liked_by", {}).get("count", 0),
+             "did_report_as_spam": edge["node"].get("did_report_as_spam"),
+             "threaded_comments": edge["node"].get("edge_threaded_comments"),
         }
         for edge in edges
     ]
@@ -90,6 +92,8 @@ def caption(data: dict, user_id: str) -> Tuple:
 
 
 def save_web_image(filepath: str, url: str, user_agent: str, config: dict, logger: Logger):
+    logger.info(f"Saving image to {filepath}")
+
     response = requests.get(url, headers={"User-agent": user_agent})
     
     Path(path.dirname(filepath)).mkdir(parents=True, exist_ok=True)
@@ -99,7 +103,10 @@ def save_web_image(filepath: str, url: str, user_agent: str, config: dict, logge
     random_sleep(logger=logger, **config['sleep_ranges']['after_saving_image'])
 
 
-def save_text(filepath: str, text: str):
+def save_text(filepath: str, text: str, logger: Logger):
+    logger.info(f"Saving data to {filepath}...")
+    logger.debug(f"Data contents: {text}")
+
     Path(path.dirname(filepath)).mkdir(parents=True, exist_ok=True)
     with open(filepath, "w") as file_handle:
         file_handle.write(text)
@@ -119,12 +126,12 @@ def scrape_shortlink_media(url:str, user_id: str, data_path: str, config: dict, 
 
     comments_path, comments_json = comments(media_data, user_id)
     full_comments_path = path.join(data_path, comments_path)
-    save_text(full_comments_path, comments_json)
+    save_text(full_comments_path, comments_json, logger)
 
     caption_path, caption_json = caption(media_data, user_id)
     if caption_path and caption_json:
         full_caption_path = path.join(data_path, caption_path)
-        save_text(full_caption_path, caption_json)
+        save_text(full_caption_path, caption_json, logger)
 
 
 @click.command()
@@ -183,7 +190,7 @@ def save_media(
         level=log_level,
     )
 
-    logger.info(f'Loading data from {data_directory_path}...')
+    logger.info(f'Loading data from {csv_file_path}...')
     accounts = pd.read_csv(csv_file_path)
 
     if cluster_indices is not None:
@@ -192,41 +199,58 @@ def save_media(
 
     accounts = accounts[accounts['centrality'] >= min_centrality]
 
-    logger.info('Authenticating to Instagram...')
     ig_client = Instagram()
-    random_sleep(logger=logger, **config['sleep_ranges']['after_logging_in'])
     
-    accounts_per_round = random.randint(
+    accounts_this_round = random.randint(
         config["accounts_scraped_per_round"]["minimum"],
         config["accounts_scraped_per_round"]["maximum"]
     )
+    counter = 0
 
-    for index, account in enumerate(accounts.itertuples(), 1):
-        try: 
-            if index % accounts_per_round == 0:
-                random_sleep(logger=logger, **config['sleep_ranges']['between_scraping_rounds'])
-                accounts_per_round = random.randint(
-                    config["accounts_scraped_per_round"]["minimum"],
-                    config["accounts_scraped_per_round"]["maximum"]
+    for account in accounts.itertuples():
+
+        scraping_completed_filepath = path.join(data_directory_path, str(account.identifier), "completed")
+        if path.exists(scraping_completed_filepath):
+            logger.info(f"Scipping account {account.username} as media already scraped")
+            continue 
+
+        logger.info(f'Getting media for {account.username}...')
+        instagram_success = False
+        while not instagram_success:
+            try:
+                media = ig_client.get_medias_by_user_id(
+                    id=account.identifier,
+                    count=config['scraping']['max_media_items_per_account']
                 )
+                instagram_success = True
+            except InstagramException:
+                debug.exception(f"Failied to get media data for user {account.username}.")
+                random_sleep(logger=logger, **config['sleep_ranges']['after_igramscraper_failure'])
 
-            logger.info(f'Getting media for {account.username}...')
-            media = ig_client.get_medias_by_user_id(
-                id=account.identifier,
-                count=config['scraping']['max_media_items_per_account']
+        for media_object in media:
+            scrape_shortlink_media(
+                media_object.link, 
+                account.identifier, 
+                data_directory_path, 
+                config, 
+                logger
             )
-            for media_object in media:
-                scrape_shortlink_media(
-                    media_object.link, 
-                    account.identifier, 
-                    data_directory_path, 
-                    config, 
-                    logger
-                )
-            random_sleep(logger=logger, **config['sleep_ranges']['after_scraping_user_media'])
-        except OSError: 
-            logger.exception(f"Scraping failed for account {account.username}")
-            continue
+
+        Path(path.dirname(scraping_completed_filepath)).mkdir(parents=True, exist_ok=True)
+        with open(scraping_completed_filepath, "w") as file_obj:
+            file_obj.write(":-)\n")
+
+        random_sleep(logger=logger, **config['sleep_ranges']['after_scraping_user_media']
+
+        counter += 1
+        if counter == accounts_this_round:
+            random_sleep(logger=logger, **config['sleep_ranges']['between_scraping_rounds'])
+            accounts_this_round = random.randint(
+                config["accounts_scraped_per_round"]["minimum"],
+                config["accounts_scraped_per_round"]["maximum"]
+            )
+            counter = 0
+
 
 if __name__ == '__main__':
     save_media()

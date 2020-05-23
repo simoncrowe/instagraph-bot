@@ -240,11 +240,11 @@ def save_media(
         with open(scraping_completed_filepath, "w") as file_obj:
             file_obj.write(":-)\n")
 
-        random_sleep(logger=logger, **config['sleep_ranges']['after_scraping_user_media']
+        random_sleep(logger=logger, **config['sleep_ranges']['after_scraping_user_media'])
 
         counter += 1
         if counter == accounts_this_round:
-            random_sleep(logger=logger, **config['sleep_ranges']['between_scraping_rounds'])
+            random_sleep(logger=logger, **config['sleep_ranges']['between_media_scraping_rounds'])
             accounts_this_round = random.randint(
                 config["accounts_scraped_per_round"]["minimum"],
                 config["accounts_scraped_per_round"]["maximum"]

@@ -1,6 +1,8 @@
 from datetime import datetime
 import json
+from logging import Logger
 from os import path
+from pathlib import Path
 from typing import Generator, Tuple
 import random
 
@@ -49,20 +51,22 @@ def images(data: dict, user_id: str) -> Generator[Tuple[str, str], None, None]:
         for child_data in sidecar_images:
             child_image_id = child_data["node"]["id"]
             url = child_data["node"]["display_url"]
-            yield f"{user_id}/images/{image_id}/children/", url
+            yield f"{user_id}/images/{image_id}/children/{child_image_id}/image.jpg", url
     else:
         image_id = data["id"]
         url = data["display_url"]
-        yield "{user_id}/images/{image_id}/url", url
+        yield "{user_id}/images/{image_id}/image.jpg", url
 
 
-def comment_data(edges) -> Generator[dict, None, None]:
-    for edge in edges:
-        yield {
+def comment_data(edges) -> list:
+    return [
+        {
              "id": edge["node"]["id"],
              "text": edge["node"]["text"],
              "owner_id": edge["node"]["owner"]["id"],
         }
+        for edge in edges
+    ]
 
 
 def comments(data: dict, user_id: str) -> Tuple[str, str]:
@@ -74,44 +78,53 @@ def comments(data: dict, user_id: str) -> Tuple[str, str]:
 
 
 def caption(data: dict, user_id: str) -> Tuple:
+    image_id = data["id"]
     edges =  data.get("edge_media_to_caption", {}).get("edges", [{}])
-    caption = edges[0].get("node", {}).get("text")
-    if caption:
-        return f"{user_id}/images/{image_id}/capton.json", json.dumps(caption)
+    
+    if edges:
+        caption = edges[0].get("node", {}).get("text")
+        if caption:
+            return f"{user_id}/images/{image_id}/caption.json", json.dumps(caption)
+    
+    return None, None
 
 
-def save_web_image(path: str, url: str, user_agent: str, config: dict):
+def save_web_image(filepath: str, url: str, user_agent: str, config: dict, logger: Logger):
     response = requests.get(url, headers={"User-agent": user_agent})
-    with open(path, "wb") as file_handle:
+    
+    Path(path.dirname(filepath)).mkdir(parents=True, exist_ok=True)
+    with open(filepath, "wb") as file_handle:
        file_handle.write(response.content)
 
     random_sleep(logger=logger, **config['sleep_ranges']['after_saving_image'])
 
 
-def save_text(path: str, text: str):
-    with open(path, "w") as file_handle:
+def save_text(filepath: str, text: str):
+    Path(path.dirname(filepath)).mkdir(parents=True, exist_ok=True)
+    with open(filepath, "w") as file_handle:
         file_handle.write(text)
 
 
-def scrape_shortlink_media(url:str, user_id: str, data_path: str, config: dict):
+def scrape_shortlink_media(url:str, user_id: str, data_path: str, config: dict, logger: Logger):
     user_agent = random.choice(COMMON_USER_AGENTS)
     response = requests.get(url, headers={"User-Agent": user_agent})
-    soup = BeautifulSoup(response.text)
+    soup = BeautifulSoup(response.text, features="html.parser")
 
     all_data = media_json_from_html(soup)
     media_data = all_data['entry_data']['PostPage'][0]['graphql']['shortcode_media']
 
     for image_path, image_url in images(media_data, user_id):
         full_image_path = path.join(data_path, image_path)
-        save_web_image(full_image_path, image_url, user_agent, config)
+        save_web_image(full_image_path, image_url, user_agent, config, logger)
 
     comments_path, comments_json = comments(media_data, user_id)
     full_comments_path = path.join(data_path, comments_path)
-    save_test(full_comments_path, comments_json)
+    save_text(full_comments_path, comments_json)
 
     caption_path, caption_json = caption(media_data, user_id)
-    full_caption_path = path.join(data_path, caption_path)
-    save_text(full_caption_path, caption_json)
+    if caption_path and caption_json:
+        full_caption_path = path.join(data_path, caption_path)
+        save_text(full_caption_path, caption_json)
 
 
 @click.command()
@@ -203,9 +216,15 @@ def save_media(
                 count=config['scraping']['max_media_items_per_account']
             )
             for media_object in media:
-                scrape_shortlink_media(media_object.link, account.identifier, data_directory_path, config)
+                scrape_shortlink_media(
+                    media_object.link, 
+                    account.identifier, 
+                    data_directory_path, 
+                    config, 
+                    logger
+                )
             random_sleep(logger=logger, **config['sleep_ranges']['after_scraping_user_media'])
-        except: 
+        except OSError: 
             logger.exception(f"Scraping failed for account {account.username}")
             continue
 

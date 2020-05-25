@@ -15,7 +15,6 @@ import requests
 import yaml
 
 from scraping import random_sleep
-
 from scripts.util import initialise_logger
 
 
@@ -56,39 +55,11 @@ def images(data: dict, user_id: str) -> Generator[Tuple[str, str], None, None]:
         yield f"{user_id}/images/{image_id}/image.jpg", url
 
 
-def comment_data(edges) -> list:
-    return [
-        {
-             "id": edge["node"]["id"],
-             "text": edge["node"]["text"],
-             "owner_id": edge["node"]["owner"]["id"],
-             "created_at": edge["node"]["created_at"],
-             "likes_count": edge["node"].get("edge_liked_by", {}).get("count", 0),
-             "did_report_as_spam": edge["node"].get("did_report_as_spam"),
-             "threaded_comments": edge["node"].get("edge_threaded_comments"),
-        }
-        for edge in edges
-    ]
-
-
-def comments(data: dict, user_id: str) -> Tuple[str, str]:
-    image_id = data["id"]
-    edges = data.get("edge_media_to_parent_comment", {}).get("edges")
-
-    comments_json = json.dumps(comment_data(edges))
-    return f"{user_id}/images/{image_id}/comments.json", comments_json
-
-
-def caption(data: dict, user_id: str) -> Tuple:
-    image_id = data["id"]
-    edges =  data.get("edge_media_to_caption", {}).get("edges", [{}])
+def media_data(data: dict, user_id: str) -> Tuple[str, str]:  
+    media_data = data['entry_data']['PostPage'][0]['graphql']['shortcode_media']
+    image_id = media_data["id"]
     
-    if edges:
-        caption = edges[0].get("node", {}).get("text")
-        if caption:
-            return f"{user_id}/images/{image_id}/caption.json", json.dumps(caption)
-    
-    return None, None
+    return  f"{user_id}/images/{image_id}/data.json", media_data
 
 
 def save_web_image(filepath: str, url: str, user_agent: str, config: dict, logger: Logger):
@@ -116,22 +87,15 @@ def scrape_shortlink_media(url:str, user_id: str, data_path: str, config: dict, 
     user_agent = random.choice(COMMON_USER_AGENTS)
     response = requests.get(url, headers={"User-Agent": user_agent})
     soup = BeautifulSoup(response.text, features="html.parser")
-
     all_data = media_json_from_html(soup)
-    media_data = all_data['entry_data']['PostPage'][0]['graphql']['shortcode_media']
+    
+    media_data_path, data = media_data(all_data, user_id)
+    full_media_data_path = path.join(data_path, media_data_path)
+    save_text(full_media_data_path, json.dumps(data), logger)
 
-    for image_path, image_url in images(media_data, user_id):
+    for image_path, image_url in images(data, user_id):
         full_image_path = path.join(data_path, image_path)
         save_web_image(full_image_path, image_url, user_agent, config, logger)
-
-    comments_path, comments_json = comments(media_data, user_id)
-    full_comments_path = path.join(data_path, comments_path)
-    save_text(full_comments_path, comments_json, logger)
-
-    caption_path, caption_json = caption(media_data, user_id)
-    if caption_path and caption_json:
-        full_caption_path = path.join(data_path, caption_path)
-        save_text(full_caption_path, caption_json, logger)
 
 
 @click.command()

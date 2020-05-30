@@ -88,6 +88,10 @@ def scrape_shortlink_media(url:str, user_id: str, data_path: str, config: dict, 
     response = requests.get(url, headers={"User-Agent": user_agent})
     soup = BeautifulSoup(response.text, features="html.parser")
     all_data = media_json_from_html(soup)
+
+    if not all_data:
+        logger.warning(f'Failed to find hard-coded media data at {url}')
+        return
     
     media_data_path, data = media_data(all_data, user_id)
     full_media_data_path = path.join(data_path, media_data_path)
@@ -175,7 +179,7 @@ def save_media(
 
         scraping_completed_filepath = path.join(data_directory_path, str(account.identifier), "completed")
         if path.exists(scraping_completed_filepath):
-            logger.info(f"Scipping account {account.username} as media already scraped")
+            logger.info(f"Skipping account {account.username} as media already scraped")
             continue 
 
         logger.info(f'Getting media for {account.username}...')
@@ -188,17 +192,28 @@ def save_media(
                 )
                 instagram_success = True
             except InstagramException:
-                debug.exception(f"Failied to get media data for user {account.username}.")
+                logger.exception(f"Failed to get media data for user {account.username}.")
                 random_sleep(logger=logger, **config['sleep_ranges']['after_igramscraper_failure'])
+            except TypeError:
+                logger.exception(f"Probable unexpected NoneType when getting media for {account.username}.")
+                break
+            except Exception:
+                logger.exception(f"Unexpected failure in getting media data for user {account.username}.")
+                raise
 
-        for media_object in media:
-            scrape_shortlink_media(
-                media_object.link, 
-                account.identifier, 
-                data_directory_path, 
-                config, 
-                logger
-            )
+        if instagram_success:
+            for media_object in media:
+                try:
+                    scrape_shortlink_media(
+                        media_object.link,
+                        account.identifier,
+                        data_directory_path,
+                        config,
+                        logger
+                    )
+                except Exception:
+                    logger.exception(f"Failed to dowload media for {account.username} at {media_object.link}.")
+                    continue
 
         Path(path.dirname(scraping_completed_filepath)).mkdir(parents=True, exist_ok=True)
         with open(scraping_completed_filepath, "w") as file_obj:

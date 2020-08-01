@@ -1,19 +1,15 @@
-"""Instagram scraping logic."""
-
 import logging
+from random import random, randint
+from time import sleep
 from typing import Dict, List
 
 from igramscraper.instagram import Instagram
-from igramscraper.model.account import Account
 from igramscraper.exception import InstagramException
 
-from time import sleep
-from random import random, randint
+from ig_bot.data import Account, AccountStub, account_stub_from_obj
+from ig_bot.model import AccountNode  # TODO: deprecate
 
-from model import AccountNode
-
-
-def get_authenticated_igramscraper(username: str, password: str):
+def _get_authenticated_igramscraper(username: str, password: str):
     """Gets an authenticated igramscraper Instagram client instance."""
     client = Instagram()
     client.with_credentials(username, password)
@@ -21,13 +17,13 @@ def get_authenticated_igramscraper(username: str, password: str):
     return client
 
 
-def random_sleep(minimum: float, maximum: float, logger: logging.Logger):
+def _random_sleep(minimum: float, maximum: float, logger: logging.Logger):
     duration = round(minimum + (random() * (maximum - minimum)), 2)
     logger.info(f'Sleeping for {duration} seconds...')
     sleep(duration)
 
 
-def exponential_sleep(exponent: int, config: Dict, logger: logging.Logger):
+def _exponential_sleep(exponent: int, config: Dict, logger: logging.Logger):
     duration = round(
         config['exponential_sleep_base'] **
         (config['exponential_sleep_offset'] + exponent),
@@ -36,6 +32,20 @@ def exponential_sleep(exponent: int, config: Dict, logger: logging.Logger):
     logger.info(f'Sleeping for {duration} seconds...')
     sleep(duration)
 
+
+def followed_account_stubs(
+    follower: Account, 
+    client: Instagram, 
+    config: dict, 
+    logger: logging.Logger
+):
+    response = client.get_following(
+        account_id=follower.identifier,
+     	count=follower.follows_count,
+     	page_size=config['scraping']['follows_page_size'],
+    )
+    yield from map(account_stub_from_obj, response['accounts'])
+       
 
 def get_account(
         username: str,
@@ -74,7 +84,7 @@ def get_account(
 
 def get_followed_accounts(
         client: Instagram,
-        follower: AccountNode,
+        follower: Account,
         config: Dict,
         logger: logging.Logger,
 ) -> List[Account]:
@@ -87,9 +97,9 @@ def get_followed_accounts(
             logger.info(
                 f'Getting up-to-date follower count for {follower.username}...'
             )
-            follower = AccountNode.from_igramscraper_account(
-                client.get_account(follower.username)
-            )
+            #follower = AccountNode.from_igramscraper_account(
+            #    client.get_account(follower.username)
+            #)
             random_sleep(
                 logger=logger,
                 **config['sleep_ranges']['after_getting_account_data']
@@ -98,11 +108,11 @@ def get_followed_accounts(
                 f'Getting accounts followed by "{follower.username}"...'
             )
 
-            accounts_following = client.get_following(
-                account_id=follower.identifier,
-                count=follower.follows_count,
-                page_size=config['scraping']['follows_page_size'],
-            )['accounts']
+            #accounts_following = client.get_following(
+            #    account_id=follower.identifier,
+            #    count=follower.follows_count,
+            #    page_size=config['scraping']['follows_page_size'],
+            #)['accounts']
             random_sleep(
                 logger=logger,
                 **config['sleep_ranges']['after_getting_followed_accounts']
@@ -203,9 +213,9 @@ def get_node_for_account(
 
         while True:
             try:
-                account_node = AccountNode.from_igramscraper_account(
-                    client.get_account(account.username)
-                )
+                #account_node = AccountNode.from_igramscraper_account(
+                #    client.get_account(account.username)
+                #)
                 all_account_nodes[account_node.identifier] = account_node
                 logger.info(f'Node for "{account.username}" created.')
                 break

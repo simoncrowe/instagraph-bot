@@ -2,7 +2,11 @@ from dataclasses import dataclass
 
 
 def account_stub_from_obj(obj):
-    return AccountStub(identifier=obj.identifier, username=obj.username)
+    return AccountStub(
+        identifier=obj.identifier,
+        username=obj.username,
+        full_name=obj.full_name,
+    )
 
 
 @dataclass(frozen=True)
@@ -10,7 +14,6 @@ class AccountStub:
     identifier: str
     username: str
     full_name: str
-    profile_pic_url: str
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@ from igramscraper.instagram import Instagram
 from igramscraper.exception import InstagramException
 
 from ig_bot.data import Account, AccountStub, account_stub_from_obj
-from ig_bot.model import AccountNode  # TODO: deprecate
+
 
 def _get_authenticated_igramscraper(username: str, password: str):
     """Gets an authenticated igramscraper Instagram client instance."""
@@ -44,7 +44,7 @@ def followed_account_stubs(
      	count=follower.follows_count,
      	page_size=config['scraping']['follows_page_size'],
     )
-    yield from map(account_stub_from_obj, response['accounts'])
+    return (account_stub_from_obj(account) for account in response['accounts'])
        
 
 def get_account(
@@ -149,10 +149,10 @@ def get_followed_accounts(
 def get_nodes_for_accounts(
         client: Instagram,
         accounts: List[Account],
-        all_account_nodes: Dict[str, AccountNode],
+        all_account_nodes: Dict[str, object],
         config: dict,
         logger: logging.Logger,
-) -> List[AccountNode]:
+) -> List[object]:
     """Get nodes for accounts with full information."""
     nodes = []
     scraped_count = 0
@@ -197,7 +197,7 @@ def get_nodes_for_accounts(
 def get_node_for_account(
         client: Instagram,
         account: Account,
-        all_account_nodes: Dict[str, AccountNode],
+        all_account_nodes: Dict[str, object],
         config: dict,
         logger: logging.Logger,
 ):

@@ -32,10 +32,10 @@ class AccountFactory(factory.Factory):
     
 
 class AccountStubFactory(factory.Factory):
-   class Meta:
-       model = AccountStub
+    class Meta:
+        model = AccountStub
 
     identifier = '1'
     username = 'janed'
     full_name = 'Jane Doe'
-    profile_pic_url = 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07'
+

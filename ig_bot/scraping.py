@@ -1,12 +1,13 @@
+import functools
 import logging
 from random import random, randint
-from time import sleep
-from typing import Dict, List
+import time
+from typing import Dict, Generator, List
 
 from igramscraper.instagram import Instagram
 from igramscraper.exception import InstagramException
 
-from ig_bot.data import Account, AccountStub, account_stub_from_obj
+from ig_bot.data import Account, AccountSummary, account_summary_from_obj
 
 
 def _get_authenticated_igramscraper(username: str, password: str):
@@ -20,31 +21,49 @@ def _get_authenticated_igramscraper(username: str, password: str):
 def _random_sleep(minimum: float, maximum: float, logger: logging.Logger):
     duration = round(minimum + (random() * (maximum - minimum)), 2)
     logger.info(f'Sleeping for {duration} seconds...')
-    sleep(duration)
+    time.sleep(duration)
 
 
-def _exponential_sleep(exponent: int, config: Dict, logger: logging.Logger):
-    duration = round(
-        config['exponential_sleep_base'] **
-        (config['exponential_sleep_offset'] + exponent),
-        2
-    )
-    logger.info(f'Sleeping for {duration} seconds...')
-    sleep(duration)
+def exponential_sleep(exponent: int, base: float, offset: float, logger: logging.Logger):
+    duration = (base ** exponent) + offset
+    duration_rounded = round(duration, 2)
+    logger.info(f'Sleeping for {duration_rounded} seconds...')
+    time.sleep(duration_rounded)
 
 
-def followed_account_stubs(
-    follower: Account, 
+def retry_on_rate_limiting(func):
+
+    @functools.wraps(func)
+    def wrapper(*args, config, logger, **kwargs):
+
+        retries = config["rate_limit_retries"]
+        for attempt_number in range(1, retries + 1):
+            try:
+                return func(*args, config=config, logger=logger, **kwargs)
+            except InstagramException as exception:
+                if '429' in str(exception):
+                    logger.exception("Scraping failed due to rate limiting")
+
+                    base = config['exponential_sleep_base']
+                    offset = config['exponetial_sleep_offset']
+                    exponential_sleep(attempt_number, base, offset, logger)
+
+    return wrapper
+
+
+@retry_on_rate_limiting
+def followed_accounts(
+    follower: Account,
     client: Instagram, 
     config: dict, 
     logger: logging.Logger
-):
+) -> Generator[AccountSummary, None, None]:
     response = client.get_following(
         account_id=follower.identifier,
      	count=follower.follows_count,
      	page_size=config['scraping']['follows_page_size'],
     )
-    return (account_stub_from_obj(account) for account in response['accounts'])
+    return (account_summary_from_obj(account) for account in response['accounts'])
        
 
 def get_account(
@@ -65,7 +84,7 @@ def get_account(
 
             if '429' in str(exception):
                 logger.exception(
-                    f'Prevented from getting {username} by rate limiting.'
+                     f'Prevented from getting {username} by rate limiting.'
                 )
                 exponential_sleep(
                     exponent=attempt,

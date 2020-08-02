@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
 
-def account_stub_from_obj(obj):
-    return AccountStub(
+def account_summary_from_obj(obj):
+    return AccountSummary(
         identifier=obj.identifier,
         username=obj.username,
         full_name=obj.full_name,
@@ -10,7 +10,7 @@ def account_stub_from_obj(obj):
 
 
 @dataclass(frozen=True)
-class AccountStub:
+class AccountSummary:
     identifier: str
     username: str
     full_name: str

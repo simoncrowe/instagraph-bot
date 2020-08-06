@@ -4,7 +4,11 @@ from igramscraper.exception import InstagramException
 import pytest
 
 from ig_bot.factories import AccountFactory, AccountSummaryFactory
-from ig_bot.scraping import exponential_sleep, followed_accounts
+from ig_bot.scraping import (
+    exponential_sleep,
+    followed_accounts,
+    MaxRateLimitingRetriesExceeded,
+)
 
 
 @pytest.fixture
@@ -96,7 +100,8 @@ def test_followed_account_stubs_sleeps_and_retries_on_rate_limiting_failure(mock
     }
     mock_logger = mock.Mock()
 
-    followed_accounts(follower, mock_client, config=config, logger=mock_logger)
+    with pytest.raises(MaxRateLimitingRetriesExceeded):
+        followed_accounts(follower, mock_client, config=config, logger=mock_logger)
 
     assert mock_exponential_sleep.call_count == 5
     assert mock_logger.exception.call_count == 5

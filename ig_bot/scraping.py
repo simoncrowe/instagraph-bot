@@ -10,6 +10,10 @@ from igramscraper.exception import InstagramException
 from ig_bot.data import Account, AccountSummary, account_summary_from_obj
 
 
+class MaxRateLimitingRetriesExceeded(Exception):
+    """The service still rate limits after the maxiumum number of attempts."""
+
+
 def _get_authenticated_igramscraper(username: str, password: str):
     """Gets an authenticated igramscraper Instagram client instance."""
     client = Instagram()
@@ -47,6 +51,11 @@ def retry_on_rate_limiting(func):
                     base = config['exponential_sleep_base']
                     offset = config['exponetial_sleep_offset']
                     exponential_sleep(attempt_number, base, offset, logger)
+
+        raise MaxRateLimitingRetriesExceeded(
+            f"Function {func.__name__} still failed due to rate limiting "
+            f"after {attempt_number} attempts."
+        )
 
     return wrapper
 

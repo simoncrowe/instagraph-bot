@@ -7,7 +7,7 @@ from typing import Dict, Generator, List
 from igramscraper.instagram import Instagram
 from igramscraper.exception import InstagramException
 
-from ig_bot.data import Account, AccountSummary, account_summary_from_obj
+from ig_bot.data import Account, AccountSummary, account_from_obj, account_summary_from_obj
 
 
 class MaxRateLimitingRetriesExceeded(Exception):
@@ -62,10 +62,10 @@ def retry_on_rate_limiting(func):
 
 @retry_on_rate_limiting
 def followed_accounts(
-    follower: Account,
-    client: Instagram, 
-    config: dict, 
-    logger: logging.Logger
+        follower: Account,
+        client: Instagram, 
+        config: dict, 
+        logger: logging.Logger
 ) -> Generator[AccountSummary, None, None]:
     response = client.get_following(
         account_id=follower.identifier,
@@ -75,39 +75,14 @@ def followed_accounts(
     return (account_summary_from_obj(account) for account in response['accounts'])
        
 
-def get_account(
-        username: str,
+@retry_on_rate_limiting
+def account(
+        identifier: str,
         client: Instagram,
         config: dict,
         logger: logging.Logger,
-):
-    attempt = 1
-    while True:
-        try:
-            logger.info(
-                f'Getting account: {username}'
-            )
-            return client.get_account(username)
-
-        except InstagramException as exception:
-
-            if '429' in str(exception):
-                logger.exception(
-                     f'Prevented from getting {username} by rate limiting.'
-                )
-                exponential_sleep(
-                    exponent=attempt,
-                    config=config,
-                    logger=logger
-                )
-            else:
-                logger.exception(f'Failed to get "{username}".')
-                # Rather than returning None, or sleeping on
-                # unexpected exceptions, let the calling function catch
-                # the exception if desired.
-                raise
-
-        attempt += 1
+) -> Account:
+    return account_from_obj(client.get_account_by_id(identifier))
 
 
 def get_followed_accounts(

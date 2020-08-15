@@ -5,7 +5,8 @@ import pytest
 
 from ig_bot.factories import AccountFactory, AccountSummaryFactory
 from ig_bot.scraping import (
-    account,
+    account_by_id,
+    account_by_username,
     exponential_sleep,
     followed_accounts,
     MaxRateLimitingRetriesExceeded,
@@ -113,7 +114,7 @@ def test_expoential_sleep_logs_sleep_duration(mock_sleep):
     mock_logger.info.assert_called_with(f'Sleeping for 4106 seconds...')
 
 
-def test_followed_account_summaries_yields_followers(
+def test_followed_accounts_yields_followers(
     account_one_mock,
     account_one_summary,
     account_two_mock,
@@ -139,7 +140,7 @@ def test_followed_account_summaries_yields_followers(
 
 
 @mock.patch('ig_bot.scraping.exponential_sleep')
-def test_followed_account__retries_on_rate_limiting(mock_exponential_sleep):
+def test_followed_accounts_retries_on_rate_limiting(mock_exponential_sleep):
     follower = AccountFactory(identifier='1', username='bot')
     mock_client = mock.Mock()
     mock_client.get_following.side_effect = InstagramException("429")
@@ -161,7 +162,7 @@ def test_followed_account__retries_on_rate_limiting(mock_exponential_sleep):
     assert mock_logger.exception.call_count == 5
 
 
-def test_account_return_account(account_one_mock, account_one):
+def test_account_by_id_returns_account(account_one_mock, account_one):
     mock_client = mock.Mock()
     mock_client.get_account_by_id.return_value = account_one_mock 
     mock_logger = mock.Mock()
@@ -171,10 +172,74 @@ def test_account_return_account(account_one_mock, account_one):
         'exponetial_sleep_offset': 10.3,
     }
 
-    retrieved_account = account(account_one.identifier, 
-                                mock_client, 
-                                config=config,
-                                logger=mock_logger)
+    retrieved_account = account_by_id(account_one.identifier, 
+                                      mock_client, 
+                                      config=config,
+                                      logger=mock_logger)
 
     assert retrieved_account == account_one
+
+
+@mock.patch('ig_bot.scraping.exponential_sleep')
+def test_account_by_id_retries_on_rate_limiting(mock_exponential_sleep,
+                                                account_one):
+    mock_client = mock.Mock()
+    mock_client.get_account_by_id.side_effect = InstagramException("429")
+    config = {
+        'scraping': {'follows_page_size': 100},
+        'rate_limit_retries': 5,
+        'exponential_sleep_base': 2.05,
+        'exponetial_sleep_offset': 10.3,
+    }
+    mock_logger = mock.Mock()
+
+    with pytest.raises(MaxRateLimitingRetriesExceeded):
+        account_by_id(account_one.identifier, 
+                      mock_client, 
+                      config=config,
+                      logger=mock_logger)
+    
+    assert mock_exponential_sleep.call_count == 5
+    assert mock_logger.exception.call_count == 5
+
+
+def test_account_by_username_returns_account(account_one_mock, account_one):
+    mock_client = mock.Mock()
+    mock_client.get_account.return_value = account_one_mock 
+    mock_logger = mock.Mock()
+    config = {
+        'rate_limit_retries': 5,
+        'exponential_sleep_base': 2.05,
+        'exponetial_sleep_offset': 10.3,
+    }
+
+    retrieved_account = account_by_username(account_one.username, 
+                                            mock_client, 
+                                            config=config,
+                                            logger=mock_logger)
+
+    assert retrieved_account == account_one
+
+@mock.patch('ig_bot.scraping.exponential_sleep')
+def test_account_by_username_retries_on_rate_limiting(mock_exponential_sleep,
+                                                account_one):
+    mock_client = mock.Mock()
+    mock_client.get_account.side_effect = InstagramException("429")
+    config = {
+        'scraping': {'follows_page_size': 100},
+        'rate_limit_retries': 5,
+        'exponential_sleep_base': 2.05,
+        'exponetial_sleep_offset': 10.3,
+    }
+    mock_logger = mock.Mock()
+
+    with pytest.raises(MaxRateLimitingRetriesExceeded):
+        account_by_username(account_one.username, 
+                      mock_client, 
+                      config=config,
+                      logger=mock_logger)
+    
+    assert mock_exponential_sleep.call_count == 5
+    assert mock_logger.exception.call_count == 5
+
 

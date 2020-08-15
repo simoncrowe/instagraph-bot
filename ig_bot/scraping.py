@@ -76,13 +76,21 @@ def followed_accounts(
        
 
 @retry_on_rate_limiting
-def account(
-        identifier: str,
-        client: Instagram,
-        config: dict,
-        logger: logging.Logger,
-) -> Account:
+def account_by_id(identifier: str,
+                  client: Instagram,
+                  config: dict,
+                  logger: logging.Logger) -> Account:
+
     return account_from_obj(client.get_account_by_id(identifier))
+
+
+@retry_on_rate_limiting
+def account_by_username(username: str,
+                        client: Instagram,
+                        config: dict,
+                        logger: logging.Logger) -> Account:
+
+    return account_from_obj(client.get_account(username))
 
 
 def get_followed_accounts(

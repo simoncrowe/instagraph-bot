@@ -1,4 +1,9 @@
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import asdict, dataclass, fields
+from itertools import chain
+from typing import Generator,  Iterable
+
+import pandas as pd
 
 
 @dataclass(frozen=True)
@@ -6,6 +11,7 @@ class AccountSummary:
     identifier: str
     username: str
     full_name: str
+    centrality: float = None
 
 
 def account_summary_from_obj(obj):
@@ -48,6 +54,7 @@ class Account:
     business_phone_number: str
     business_address_json: str
     connected_fb_page: str
+    centrality: float = None
 
 
 def account_from_obj(obj):
@@ -75,4 +82,26 @@ def account_from_obj(obj):
         business_address_json=obj.business_address_json,
         connected_fb_page=obj.connected_fb_page,
     )
+
+
+def accounts_from_dataframe(
+    data: pd.DataFrame
+) -> Generator[Account, None, None]:
+    for row in data.itertuples(index=False):
+        yield (Account(**row._asdict()))
+
+
+def _getattr_from(name: str, objs: Iterable) -> Generator[object, None, None]:
+    for obj in objs:
+        yield getattr(obj, name)
+
+
+def accounts_to_dataframe(accounts: Iterable[Account]) -> pd.DataFrame:
+    data = {
+        field.name: _getattr_from(field.name, accounts)
+        for field in fields(Account)
+    }
+    index = (account.identifier for account in accounts)
+
+    return pd.DataFrame(data, index)
 

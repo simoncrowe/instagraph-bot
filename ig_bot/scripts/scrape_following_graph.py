@@ -1,195 +1,63 @@
-from datetime import datetime
+from os import path
 
 import click
-import networkx as nx
 import yaml
 
-from graph import (
-    add_edges,
-    add_nodes,
-    order_account_nodes_by_importance,
-    account_nodes_from_graph,
-    CENTRALITY_METRIC_FUNCTIONS)
-from model import AccountNode
-from scraping import (
-    get_account,
-    get_authenticated_igramscraper,
-    get_followed_accounts,
-    get_nodes_for_accounts,
-    random_sleep
-)
-
-from scripts.util import (
+from ig_bot.graph import EIGENVECTOR_CENTRALITY
+from ig_bot.scripts.util import (
     get_graph_file_path,
     initialise_logger,
+    load_dataframe_csv,
     load_graph_gml,
-    save_graph_gml
+    save_graph_gml,
 )
 
 
 @click.command()
-@click.option('--username', '-u', help='Username of root node.', required=True)
-@click.option('--depth', '-d', type=int, help='Depth of search.', required=True)
-@click.option('--log-level', '-l', type=str, default='DEBUG')
+@click.argument('data_dir')
+@click.option('--username', '-u', type=str, help='Username of root node.')
+@click.option('--log-level', '-l', type=str)
 @click.option(
-    '--prune-unimportant-accounts-after',
-    '-p',
-    type=int,
-    default=2,
-    help='The layer after which to prune unimportant accounts.'
-)
-@click.option(
-    '--max-important-accounts-kept',
-    '-m',
-    type=int,
-    default=128,
-    help='How many accounts to keep in layers where pruning takes place.'
-)
-@click.option(
-    '--importance-measure',
-    '-i',
+    '--centrality-metric',
+    '-c',
     type=str,
-    default='EIGENVECTOR_CENTRALITY',
     help='The measure determining the importance of an account.'
 )
-@click.option(
-    '--exclude-first-layer',
-    is_flag=True,
-    help='Exclude the root node (account) and edges to accounts it follows.'
-)
-@click.option(
-    '--existing-graph-file',
-    '-e',
-    'existing_graph_file_path',
-    type=str,
-    default=None,
-    help=(
-        'The path to an incomplete GML file to load. '
-        'This allows one to quickly pick up where one left off '
-        'with fewer HTTP requests. '
-        '(This works with directed graphs because adding edges is idempotent.)'
-    )
-)
-def save_following_graph(
-        username: str,
-        depth: int,
-        log_level: str,
-        prune_unimportant_accounts_after: int,
-        max_important_accounts_kept: int,
-        importance_measure: str,
-        exclude_first_layer: bool,
-        existing_graph_file_path: str,
-):
-    """Scrapes Instagram for a graph of users followed by a user
-     and those they follow etc.
-     """
-    if depth < 1:
-        raise ValueError('The depth argument should be 1 or greater.')
+def scrape_following_graph(data_dir, username, log_level, centrality_metric):
+    scrape_graph(data_dir, username, log_level, centrality_metric)
 
-    with open('config.yaml') as file_obj:
-        config = yaml.safe_load(file_obj)
 
-    file_friendly_datetime = datetime.now().strftime('%Y-%m-%d_%H%M')
-    base_file_name = f'{file_friendly_datetime}_{username}-follows-{depth}'
+def scrape_graph(data_dir: str,
+                 username: str = None,
+                 log_level: str = 'INFO',
+                 centrality_metric: str = EIGENVECTOR_CENTRALITY):
 
-    logger = initialise_logger(
-        directory=config['logs_directory'],
-        name=base_file_name,
-        module='instagraph_bot.scripts.save_following_graph',
-        level=log_level,
-    )
+    #with open('config.yaml') as file_obj:
+    #    config = yaml.safe_load(file_obj)
 
-    logger.info('Authenticating to Instagram...')
-    ig_client = get_authenticated_igramscraper(**config['instagram_auth'])
-    random_sleep(logger=logger, **config['sleep_ranges']['after_logging_in'])
+    logger = initialise_logger(data_dir,
+                               'log',
+                               'ig_bot.scripts.scrape_following_graph',
+                               log_level)
 
-    logger.info(f'Getting target account: {username}.')
-    root_account = AccountNode.from_igramscraper_account(
-        get_account(username=username, client=ig_client,
-                    config=config, logger=logger)
-    )
-    random_sleep(logger=logger,
-                 **config['sleep_ranges']['after_getting_target_account'])
+    graph_path = path.join(data_dir, 'graph.gml')
+    try:
+        graph = load_graph_gml(graph_path, logger)
+    except OSError:
+        graph = None
 
-    if existing_graph_file_path:
-        graph = load_graph_gml(existing_graph_file_path, logger)
-    else:
-        graph = nx.DiGraph()
+    accounts_path = path.join(data_dir, 'accounts.csv')
+    try:
+        accounts = load_dataframe_csv(accounts_path, logger)
+    except OSError:
+        accounts = None
 
-    all_account_nodes = {
-        account_node.identifier: account_node for account_node
-        in account_nodes_from_graph(graph, logger)
-    }
+    data_present = graph and accounts
 
-    accounts_already_targeted = set()
-
-    layer = 0
-    if not exclude_first_layer:
-        # Ensure that the root node is in the graph.
-        graph.add_node(
-            root_account.identifier,
-            **root_account.to_camelcase_dict()
+    if bool(data_present) == bool(username):
+        raise ValueError(
+            'Either a data directory with existing data must be '
+            'provided or a username, not both.'
         )
-    target_accounts = [root_account]
-
-    graph_file_path = get_graph_file_path(filename=base_file_name,
-                                          directory=config['data_directory'])
-    save_graph_gml(graph=graph, filepath=graph_file_path, logger=logger)
-
-    while layer < depth:
-
-        next_layer_targets = set()
-        accounts_already_targeted.update(target_accounts)
-
-        for account in target_accounts:
-            accounts_following = get_followed_accounts(
-                client=ig_client,
-                follower=account,
-                config=config,
-                logger=logger
-            )
-            nodes_following = get_nodes_for_accounts(
-                client=ig_client,
-                accounts=accounts_following,
-                all_account_nodes=all_account_nodes,
-                config=config,
-                logger=logger
-            )
-
-            add_nodes(graph=graph, nodes=nodes_following, logger=logger)
-            if not (exclude_first_layer and layer == 0):
-                add_edges(
-                    graph=graph,
-                    source=account,
-                    destinations=nodes_following,
-                    logger=logger
-                )
-            next_layer_targets.update(nodes_following)
-
-            save_graph_gml(graph=graph, filepath=graph_file_path, logger=logger)
-
-        if layer >= prune_unimportant_accounts_after:
-            target_accounts = order_account_nodes_by_importance(
-                graph=graph,
-                all_account_nodes=all_account_nodes,
-                candidate_account_nodes=next_layer_targets.difference(
-                    accounts_already_targeted
-                ),
-                importance_measure=CENTRALITY_METRIC_FUNCTIONS[
-                    importance_measure
-                ],
-                logger=logger
-            )[:max_important_accounts_kept]
-
-        else:
-            target_accounts = next_layer_targets
-        logger.info(f'Layer {layer} complete.')
-        layer += 1
-        random_sleep(logger=logger,
-                     **config['sleep_ranges']['after_adding_layer'])
-
-    logger.info('Scraping complete.')
 
 
-if __name__== '__main__':
-    save_following_graph()

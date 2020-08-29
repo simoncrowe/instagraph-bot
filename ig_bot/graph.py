@@ -43,7 +43,7 @@ def _combine(**attributes) -> defaultdict:
     """
     combined = defaultdict(dict)
 
-    for name, pairs in dicts.items():
+    for name, pairs in attributes.items():
         for k, v in pairs.items():
             combined[k][name] = v
 

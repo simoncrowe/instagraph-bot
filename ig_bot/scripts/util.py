@@ -55,3 +55,9 @@ def save_dataframe_csv(
 ) -> None:
     df.to_csv(filepath)
     logger.info(f'DataFrame saved to {filepath}.')
+
+
+def load_dataframe_csv(filepath: str, logger: logging.Logger) -> pd.DataFrame:
+    logger.info(f'Loading DataFrame from {filepath}')
+    return pd.read_csv(filepath)
+

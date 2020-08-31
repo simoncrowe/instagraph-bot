@@ -1,7 +1,7 @@
 from collections import defaultdict
 from dataclasses import asdict, dataclass, fields
 from itertools import chain
-from typing import Generator,  Iterable
+from typing import Generator, Iterable, List
 
 import pandas as pd
 
@@ -19,6 +19,7 @@ def account_summary_from_obj(obj):
         identifier=obj.identifier,
         username=obj.username,
         full_name=obj.full_name,
+        centrality=obj.centrality,
     )
 
 
@@ -96,7 +97,7 @@ def _getattr_from(name: str, objs: Iterable) -> Generator[object, None, None]:
         yield getattr(obj, name)
 
 
-def accounts_to_dataframe(accounts: Iterable[Account]) -> pd.DataFrame:
+def accounts_to_dataframe(accounts: List[Account]) -> pd.DataFrame:
     data = {
         field.name: _getattr_from(field.name, accounts)
         for field in fields(Account)

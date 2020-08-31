@@ -1,12 +1,17 @@
+from dataclasses import asdict
+from itertools import islice
 import logging
 from os import path
 from pathlib import Path
-
+from typing import Iterable
 
 import click
+import pandas as pd
 import yaml
 
+from ig_bot.data import Account, AccountSummary, accounts_to_dataframe
 from ig_bot.graph import CENTRALITY_METRIC_FUNCTIONS, EIGENVECTOR_CENTRALITY
+from ig_bot.scraping import account_by_id
 from ig_bot.scripts.util import (
     get_graph_file_path,
     initialise_logger,
@@ -71,14 +76,45 @@ def scrape_graph(data_dir: str,
     logger = _get_logger(data_dir, log_level)
 
     graph = _load_graph(data_dir, logger)
-    accounts = _load_accounts(data_dir, logger)
+    accounts_data = _load_accounts(data_dir, logger)
 
-    data_present = bool(graph) and bool(accounts)
+    data_present = bool(graph) and bool(accounts_data)
 
     if data_present == bool(username):
         raise ValueError(
             'Either a data directory with existing data must be '
-            'provided or a username, not both.'
+            'provided or a username, not both nor neither.'
         )
 
+
+def update_accounts_data(data: pd.DataFrame,
+                         new_accounts: Iterable[AccountSummary],
+                         accounts_retained: int) -> pd.DataFrame:
+
+    accounts_by_centrality = sorted(new_accounts,
+                                    key=lambda a: a.centrality,
+                                    reverse=True)
+    relevant_ids = set(
+        account.identifier
+        for account in islice(accounts_by_centrality, accounts_retained)
+    )
+    existing_ids = set(data['identifier'])
+    ids_to_scrape = relevant_ids.difference(existing_ids)
+    accounts_to_scrape = (
+        a for a in new_accounts if a.identifier in ids_to_scrape
+    )
+
+    accounts = list(_full_accounts_with_centrality(accounts_to_scrape))
+    new_data = accounts_to_dataframe(accounts)
+
+    combined_data = pd.concat([data, new_data])
+    combined_sorted = combined_data.sort_values(["centrality"], ascending=False)
+    return combined_sorted
+
+
+def _full_accounts_with_centrality(summaries: Iterable[AccountSummary]):
+    for summary in summaries:
+        account_data = asdict(account_by_id(summary.identifier))
+        account_data['centrality'] = summary.centrality
+        yield Account(**account_data)
 

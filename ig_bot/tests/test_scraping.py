@@ -37,7 +37,7 @@ def account_one_mock():
     mock_ig_account.business_email = None
     mock_ig_account.business_phone_number = None
     mock_ig_account.business_address_json = None
-    mock_ig_account.connected_fb_page = None
+    mock_ig_account.centrality = None
 
     return mock_ig_account
 
@@ -67,6 +67,7 @@ def account_one(account_one_mock):
         business_phone_number=account_one_mock.business_phone_number,
         business_address_json=account_one_mock.business_address_json,
         connected_fb_page=account_one_mock.connected_fb_page,
+        centrality=account_one_mock.centrality,
     )
 
 @pytest.fixture
@@ -75,6 +76,7 @@ def account_one_summary(account_one_mock):
         identifier=account_one_mock.identifier,
         username=account_one_mock.username,
         full_name=account_one_mock.full_name,
+        centrality=account_one_mock.centrality,
     )
 
 
@@ -84,6 +86,7 @@ def account_two_mock():
     mock_ig_account.identifier = '2'
     mock_ig_account.username = 'two'
     mock_ig_account.full_name = 'Account Two'
+    mock_ig_account.centrality = None
     return mock_ig_account
 
 
@@ -93,6 +96,7 @@ def account_two_summary(account_two_mock):
         identifier=account_two_mock.identifier,
         username=account_two_mock.username,
         full_name=account_two_mock.full_name,
+        centrality=None,
     )
 
 

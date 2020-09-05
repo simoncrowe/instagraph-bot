@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime
 from itertools import chain
 
 import pandas as pd
@@ -37,6 +38,7 @@ def account_one_data():
         'business_address_json': None,
         'connected_fb_page': None,
         'centrality': 0.01,
+        'date_scraped': datetime(year=2020, month=9, day=6, hour=0, minute=14),
     }
 
 @pytest.fixture
@@ -70,6 +72,7 @@ def account_two_data():
         'business_address_json': None,
         'connected_fb_page': None,
         'centrality': 0.04,
+        'date_scraped': None,
     }
 
 

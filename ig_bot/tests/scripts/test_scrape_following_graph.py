@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime
 from itertools import chain
 from mock import patch
 from os import mkdir, path
@@ -9,6 +10,7 @@ import pytest
 from ig_bot.data import Account, AccountSummary, account_summary_from_obj
 from ig_bot.scripts.scrape_following_graph import (
     scrape_graph,
+    top_scraping_candidate,
     update_accounts_data,
 )
 
@@ -39,6 +41,7 @@ def account_one_data():
         'business_address_json': None,
         'connected_fb_page': None,
         'centrality': 0.1,
+        'date_scraped': datetime(year=2020, month=9, day=5, hour=9, minute=55)
     }
 
 
@@ -73,13 +76,13 @@ def account_two_data():
         'business_address_json': None,
         'connected_fb_page': None,
         'centrality': 0.04,
+        'date_scraped': datetime(year=2020, month=9, day=5, hour=7, minute=1)
     }
 
 
 @pytest.fixture
 def account_two(account_two_data):
     return Account(**account_two_data)
-
 
 
 @pytest.fixture
@@ -108,6 +111,7 @@ def account_three_data():
         'business_address_json': None,
         'connected_fb_page': None,
         'centrality': 0.005,
+        'date_scraped': None
     }
 
 
@@ -147,6 +151,7 @@ def account_four_data():
         'business_address_json': None,
         'connected_fb_page': None,
         'centrality': 0.001,
+        'date_scraped': None
     }
 
 
@@ -246,6 +251,33 @@ def test_update_accounts_data_returns_full_dataframe(
                                                1)
 
     assert all(resulting_dataframe == first_three_accounts_dataframe)
+
+
+def test_top_scraping_candidate_returns_appropriate_account(
+	first_three_accounts_dataframe, account_three
+):
+    resulting_account = top_scraping_candidate(first_three_accounts_dataframe,
+                                               3)
+
+    assert resulting_account == account_three
+
+
+def test_top_scraping_candidate_returns_none_if_max_accounts_already_scraped(
+	first_three_accounts_dataframe, account_three
+):
+    resulting_account = top_scraping_candidate(first_three_accounts_dataframe,
+                                               2)
+
+    assert resulting_account == None
+
+
+def test_top_scraping_candidate_returns_none_if_all_accounts_scraped(
+	first_two_accounts_dataframe
+):
+    resulting_account = top_scraping_candidate(first_two_accounts_dataframe,
+                                               3)
+
+    assert resulting_account == None
 
 
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})

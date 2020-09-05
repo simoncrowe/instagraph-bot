@@ -1,5 +1,6 @@
 from collections import defaultdict
 from dataclasses import asdict, dataclass, fields
+from datetime import datetime
 from itertools import chain
 from typing import Generator, Iterable, List
 
@@ -56,7 +57,7 @@ class Account:
     business_address_json: str
     connected_fb_page: str
     centrality: float = None
-
+    date_scraped: datetime = None
 
 def account_from_obj(obj):
     return Account(
@@ -89,7 +90,13 @@ def accounts_from_dataframe(
     data: pd.DataFrame
 ) -> Generator[Account, None, None]:
     for row in data.itertuples(index=False):
-        yield (Account(**row._asdict()))
+        row_data = row._asdict()
+
+        # Dealing with Pandas NaT values
+        if pd.isnull(row_data["date_scraped"]):
+            row_data["date_scraped"] = None
+
+        yield (Account(**row_data))
 
 
 def _getattr_from(name: str, objs: Iterable) -> Generator[object, None, None]:

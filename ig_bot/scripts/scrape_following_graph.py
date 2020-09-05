@@ -112,6 +112,21 @@ def update_accounts_data(data: pd.DataFrame,
     return combined_sorted
 
 
+def top_scraping_candidate(accounts_data: pd.DataFrame, total_scraped: int) -> Account:
+    sorted_data = accounts_data.sort_values(["centrality"], ascending=False)
+    top_data = sorted_data.head(total_scraped)
+    candidates = top_data[top_data.date_scraped.isnull()]
+
+    try:
+        row_data = next(candidates.itertuples(index=False))._asdict()
+        # Overwriting Pandas NaT value
+        row_data["date_scraped"] = None
+        return Account(**row_data)
+
+    except StopIteration:
+        return None
+
+
 def _full_accounts_with_centrality(summaries: Iterable[AccountSummary]):
     for summary in summaries:
         account_data = asdict(account_by_id(summary.identifier))

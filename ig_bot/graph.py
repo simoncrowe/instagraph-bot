@@ -20,7 +20,7 @@ CENTRALITY_METRIC_FUNCTIONS = {
 
 
 def add_nodes(graph: nx.DiGraph, *nodes: Tuple[AccountSummary]):
-    """Adds nodes to graph for AccountSummary instance is not already present. """
+    """Adds nodes to graph for AccountSummary instance if not already present. """
     graph.add_nodes_from(
         (node.identifier, account_summary_to_camel_case(node))
         for node in nodes
@@ -50,7 +50,7 @@ def _combine(**attributes) -> defaultdict:
     return combined
 
 
-def nodes_with_centrality(
+def accounts_with_centrality(
     graph: nx.DiGraph, centrality_algorithm: str
 ) -> Generator[AccountSummary, None, None]:
     centrality_function = CENTRALITY_METRIC_FUNCTIONS[centrality_algorithm]

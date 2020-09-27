@@ -4,21 +4,28 @@ from itertools import chain
 from mock import patch
 from os import mkdir, path
 import tempfile
+
+import networkx as nx
 import pandas as pd
 import pytest
 
 from ig_bot.data import Account, AccountSummary, account_summary_from_obj
+from ig_bot.graph import IN_DEGREE_CENTRALITY
 from ig_bot.scripts.scrape_following_graph import (
+    add_accounts_to_data,
+    full_accounts_with_centrality,
+    novel_account_stubs,
     scrape_graph,
     top_scraping_candidate,
-    update_accounts_data,
 )
+
+TEST_DATA_DIR = path.join(path.dirname(__file__), 'data')
 
 
 @pytest.fixture
 def account_one_data():
     return {
-        'identifier': 1,
+        'identifier': '1',
         'username': 'one',
         'full_name': 'User One',
         'profile_pic_url': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
@@ -41,7 +48,7 @@ def account_one_data():
         'business_address_json': None,
         'connected_fb_page': None,
         'centrality': 0.1,
-        'date_scraped': datetime(year=2020, month=9, day=5, hour=9, minute=55)
+        'date_scraped': None,
     }
 
 
@@ -51,9 +58,14 @@ def account_one(account_one_data):
 
 
 @pytest.fixture
+def account_one_summary(account_one):
+    return account_summary_from_obj(account_one)
+
+
+@pytest.fixture
 def account_two_data():
     return {
-        'identifier': 2,
+        'identifier': '2',
         'username': 'two',
         'full_name': 'User Two',
         'profile_pic_url': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
@@ -76,7 +88,7 @@ def account_two_data():
         'business_address_json': None,
         'connected_fb_page': None,
         'centrality': 0.04,
-        'date_scraped': datetime(year=2020, month=9, day=5, hour=7, minute=1)
+        'date_scraped': None,
     }
 
 
@@ -86,9 +98,14 @@ def account_two(account_two_data):
 
 
 @pytest.fixture
+def account_two_summary(account_two):
+    return account_summary_from_obj(account_two)
+
+
+@pytest.fixture
 def account_three_data():
     return {
-        'identifier': 3,
+        'identifier': '3',
         'username': 'three',
         'full_name': 'User Three',
         'profile_pic_url': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
@@ -128,7 +145,7 @@ def account_three_summary(account_three):
 @pytest.fixture
 def account_four_data():
     return {
-        'identifier': 4,
+        'identifier': '4',
         'username': 'four',
         'full_name': 'User Four',
         'profile_pic_url': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
@@ -196,59 +213,41 @@ def first_three_accounts_dataframe(
                          account_three_data['identifier']))
 
 
-@patch('ig_bot.scripts.scrape_following_graph.account_by_id')
-def test_update_accounts_data_calls_account_by_id_for_missing_account(
-    mock_account_by_id,
+def test_novel_account_stubs_includes_missing_account_summary(
     first_two_accounts_dataframe,
     account_three_summary,
     account_three
 ):
-    account_id_map = {account_three.identifier: account_three}
-    mock_account_by_id.side_effect = account_id_map.get
+    summaries_filter = novel_account_stubs(first_two_accounts_dataframe,
+                                           [account_three_summary],
+                                           1)
 
-    update_accounts_data(first_two_accounts_dataframe,
-                         [account_three_summary],
-                         1)
-
-    mock_account_by_id.assert_called_with(account_three_summary.identifier)
+    assert list(summaries_filter) == [account_three_summary]
 
 
-@patch('ig_bot.scripts.scrape_following_graph.account_by_id')
-def test_update_accounts_data_does_not_call_account_by_id_for_excess_account(
-    mock_account_by_id,
+def test_novel_account_stubs_filters_out_excess_account_summary(
     first_two_accounts_dataframe,
     account_three_summary,
     account_three,
     account_four_summary,
 ):
-    account_id_map = {account_three.identifier: account_three}
-    mock_account_by_id.side_effect = account_id_map.get
+    summaries_filter = novel_account_stubs(first_two_accounts_dataframe,
+                                           [account_three_summary, 
+                                            account_four_summary],
+                                           1)
+    summaries = list(summaries_filter)
 
-    update_accounts_data(first_two_accounts_dataframe,
-                         [account_three_summary, account_four_summary],
-                         1)
-
-    call_args = [call.args for call in mock_account_by_id.call_args_list]
-    assert len(call_args) == 1
-    assert (account_three_summary.identifier,) in call_args
-    assert (account_four_summary.identifier,) not in call_args
+    assert account_three_summary in summaries
+    assert account_four_summary.identifier not in summaries
 
 
-
-@patch('ig_bot.scripts.scrape_following_graph.account_by_id')
-def test_update_accounts_data_returns_full_dataframe(
-    mock_account_by_id,
+def test_add_accounts_to_data_returns_full_dataframe(
     first_two_accounts_dataframe,
     first_three_accounts_dataframe,
-    account_three_summary,
     account_three
 ):
-    account_id_map = {account_three.identifier: account_three}
-    mock_account_by_id.side_effect = account_id_map.get
-
-    resulting_dataframe = update_accounts_data(first_two_accounts_dataframe,
-                                               [account_three_summary],
-                                               1)
+    resulting_dataframe = add_accounts_to_data(first_two_accounts_dataframe,
+                                               [account_three])
 
     assert all(resulting_dataframe == first_three_accounts_dataframe)
 
@@ -286,7 +285,7 @@ def test_scrape_graph_no_username_and_nonexistent_data_dir(_):
         data_path = path.join(temp_dir, 'this_dir_does_not_exist')
 
         with pytest.raises(ValueError):
-            scrape_graph(data_path)
+            scrape_graph(data_path, 1000)
 
 
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
@@ -296,7 +295,7 @@ def test_scrape_graph_no_username_and_empty_data_dir(_):
         mkdir(data_path)
 
         with pytest.raises(ValueError):
-            scrape_graph(data_path)
+            scrape_graph(data_path, 1000)
 
 
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
@@ -314,5 +313,88 @@ def test_scrape_graph_username_and_files_in_data_dir(*_):
         open(accounts_path, 'w').close()
 
         with pytest.raises(ValueError):
-            scrape_graph(data_path, 'some_user')
+            scrape_graph(data_path, 1000, 'some_user')
+
+
+@patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
+@patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
+@patch('ig_bot.scripts.scrape_following_graph.account_by_id')
+@patch('ig_bot.scripts.scrape_following_graph.account_by_username')
+@patch('ig_bot.scripts.scrape_following_graph._load_config')
+def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
+        mock_load_config,
+        mock_account_by_username,
+        mock_account_by_id,
+        mock_followed_accounts,
+        _mock_get_authenticated_igramscraper,
+        account_one,
+        account_one_summary,
+        account_two,
+        account_two_summary,
+        account_three,
+        account_three_summary,
+        account_four,
+        account_four_summary,
+):
+    config = {
+        'ig_auth': {
+            'username': 'foo',
+            'password': 'bar',
+        },
+        'rate_limit_retries': 3,
+        'scraping': {
+            'follows_page_size': 5
+        }
+    }
+    mock_load_config.return_value = config
+
+    accounts_by_username = {account_one.username: account_one}
+    mock_account_by_username.side_effect = accounts_by_username.get
+
+    accounts_by_id = {
+        account_two.identifier: account_two,
+        account_three.identifier: account_three,
+        account_four.identifier: account_four,
+    }
+    mock_account_by_id.side_effect = accounts_by_id.get
+
+    followed_accounts_map =  {
+        account_one: [account_two_summary],
+        account_two: [account_one_summary, account_three_summary],
+        account_three: [
+            account_one_summary,
+            account_two_summary,
+            account_four_summary
+        ],
+        account_four: [
+            account_one_summary,
+            account_two_summary,
+            account_three_summary
+        ],
+    }
+
+    def fake_followed_accounts(account, ig_client, config, logger):
+        return followed_accounts_map.get(account)
+
+    mock_followed_accounts.side_effect = fake_followed_accounts
+
+    expected_graph_path = path.join(TEST_DATA_DIR, 'all-four-accounts.gml')
+    expected_graph = nx.read_gml(expected_graph_path)
+
+    expected_csv_path = path.join(TEST_DATA_DIR, 'top-three-accounts.csv')
+    expected_accounts_data = pd.read_csv(expected_csv_path)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        data_path = path.join(temp_dir, 'data')
+        graph_path = path.join(data_path, 'graph.gml')
+        accounts_path = path.join(data_path, 'accounts.csv')
+
+        scrape_graph(data_path, 3, 'one', IN_DEGREE_CENTRALITY)
+
+        accounts = pd.read_csv(accounts_path)
+        assert all(accounts == expected_accounts_data)
+
+        graph = nx.read_gml(graph_path)
+        assert graph.nodes == expexted_graph.nodes
+        assert graph.edges == expected_graph.edges
 

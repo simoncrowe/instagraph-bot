@@ -14,7 +14,7 @@ class MaxRateLimitingRetriesExceeded(Exception):
     """The service still rate limits after the maxiumum number of attempts."""
 
 
-def _get_authenticated_igramscraper(username: str, password: str):
+def get_authenticated_igramscraper(username: str, password: str):
     """Gets an authenticated igramscraper Instagram client instance."""
     client = Instagram()
     client.with_credentials(username, password)

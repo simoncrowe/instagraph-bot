@@ -8,7 +8,7 @@ from ig_bot.graph import (
     add_edges, 
     add_nodes, 
     IN_DEGREE_CENTRALITY,
-    nodes_with_centrality
+    accounts_with_centrality
 )
 
 
@@ -91,13 +91,13 @@ def test_add_edges(account_one, account_two, account_three):
     assert expected_edge_to_three in edges
 
 
-def test_nodes_with_centrality(account_one, account_two, account_three):
+def test_accounts_with_centrality(account_one, account_two, account_three):
     graph = nx.DiGraph()
     add_nodes(graph, account_one, account_two, account_three)
     add_edges(graph, account_one, [account_two, account_three])
     add_edges(graph, account_two, [account_three])
     
-    result_one, result_two, result_three = nodes_with_centrality(
+    result_one, result_two, result_three = accounts_with_centrality(
         graph, IN_DEGREE_CENTRALITY
     )
 
@@ -115,4 +115,6 @@ def test_nodes_with_centrality(account_one, account_two, account_three):
     assert result_three.username == account_three.username
     assert result_three.full_name == account_three.full_name
     assert result_three.centrality == 1
+
+    nx.write_gml(graph, '/home/sc/git/instagraph-bot/ig_bot/tests/three_accounts.gml')
 

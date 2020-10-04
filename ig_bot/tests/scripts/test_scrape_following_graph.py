@@ -57,9 +57,22 @@ def account_one(account_one_data):
     return Account(**account_one_data)
 
 
+
 @pytest.fixture
 def account_one_summary(account_one):
     return account_summary_from_obj(account_one)
+
+
+@pytest.fixture
+def account_one_data_with_date_scraped(account_one_data):
+    account_one_data_scraped = account_one_data.copy()
+    account_one_data_scraped['date_scraped'] = datetime(year=2020, month=10, day=4)
+    return account_one_data_scraped
+
+
+@pytest.fixture
+def account_one_with_date_scraped(account_one_data_with_date_scraped):
+    return Account(**account_one_data_with_date_scraped)
 
 
 @pytest.fixture
@@ -100,6 +113,18 @@ def account_two(account_two_data):
 @pytest.fixture
 def account_two_summary(account_two):
     return account_summary_from_obj(account_two)
+
+
+@pytest.fixture
+def account_two_data_with_date_scraped(account_two_data):
+    account_two_data_scraped = account_two_data.copy()
+    account_two_data_scraped['date_scraped'] = datetime(year=2020, month=10, day=5)
+    return account_two_data_scraped
+
+
+@pytest.fixture
+def account_two_with_date_scraped(account_two_data_with_date_scraped):
+    return Account(**account_two_data_with_date_scraped)
 
 
 @pytest.fixture
@@ -182,35 +207,50 @@ def account_four_summary(account_four):
     return account_summary_from_obj(account_four)
 
 
+def dataframe_from_account_data(*data):
+    indices = (datum['identifier'] for datum in data)
+
+    data_by_field = defaultdict(list)
+    for k, v in chain(*(datum.items() for datum in data)):
+        data_by_field[k].append(v)
+
+    return pd.DataFrame(data_by_field, indices)
+
+
 @pytest.fixture
 def first_two_accounts_dataframe(account_one_data, account_two_data):
-    data = defaultdict(list)
-
-    for k, v in chain(account_one_data.items(), account_two_data.items()):
-        data[k].append(v)
-
-    return pd.DataFrame(data,
-                        (account_one_data['identifier'],
-                         account_two_data['identifier']))
+    return dataframe_from_account_data(account_one_data, account_two_data)
 
 
+@pytest.fixture
+def first_two_accounts_dataframe_both_scraped(
+    account_one_data_with_date_scraped,
+    account_two_data_with_date_scraped,
+):
+    return dataframe_from_account_data(account_one_data_with_date_scraped,
+                                       account_two_data_with_date_scraped)
+
+                                       
 @pytest.fixture
 def first_three_accounts_dataframe(
     account_one_data,
     account_two_data,
     account_three_data
 ):
-    data = defaultdict(list)
+    return dataframe_from_account_data(account_one_data,
+                                       account_two_data,
+                                       account_three_data)
 
-    for k, v in chain(account_one_data.items(),
-                      account_two_data.items(),
-                      account_three_data.items()):
-        data[k].append(v)
 
-    return pd.DataFrame(data,
-                        (account_one_data['identifier'],
-                         account_two_data['identifier'],
-                         account_three_data['identifier']))
+@pytest.fixture
+def first_three_accounts_dataframe_first_two_scraped(
+    account_one_data_with_date_scraped,
+    account_two_data_with_date_scraped,
+    account_three_data,
+):
+    return dataframe_from_account_data(account_one_data_with_date_scraped,
+                                       account_two_data_with_date_scraped,
+                                       account_three_data)
 
 
 def test_novel_account_stubs_includes_missing_account_summary(
@@ -253,28 +293,31 @@ def test_add_accounts_to_data_returns_full_dataframe(
 
 
 def test_top_scraping_candidate_returns_appropriate_account(
-	first_three_accounts_dataframe, account_three
+	first_three_accounts_dataframe_first_two_scraped, account_three
 ):
-    resulting_account = top_scraping_candidate(first_three_accounts_dataframe,
-                                               3)
+    resulting_account = top_scraping_candidate(
+        first_three_accounts_dataframe_first_two_scraped, 3
+    )
 
     assert resulting_account == account_three
 
 
 def test_top_scraping_candidate_returns_none_if_max_accounts_already_scraped(
-	first_three_accounts_dataframe, account_three
+    first_three_accounts_dataframe_first_two_scraped
 ):
-    resulting_account = top_scraping_candidate(first_three_accounts_dataframe,
-                                               2)
+    resulting_account = top_scraping_candidate(
+        first_three_accounts_dataframe_first_two_scraped, 2
+    )
 
     assert resulting_account == None
 
 
 def test_top_scraping_candidate_returns_none_if_all_accounts_scraped(
-	first_two_accounts_dataframe
+	first_two_accounts_dataframe_both_scraped
 ):
-    resulting_account = top_scraping_candidate(first_two_accounts_dataframe,
-                                               3)
+    resulting_account = top_scraping_candidate(
+        first_two_accounts_dataframe_both_scraped, 3
+    )
 
     assert resulting_account == None
 

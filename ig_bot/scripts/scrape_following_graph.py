@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from datetime import datetime
 from itertools import islice
 import logging
 from os import path
@@ -10,7 +11,12 @@ import networkx as nx
 import pandas as pd
 import yaml
 
-from ig_bot.data import Account, AccountSummary, accounts_to_dataframe
+from ig_bot.data import (
+    Account,
+    AccountSummary,
+    accounts_from_dataframe,
+    accounts_to_dataframe,
+)
 from ig_bot.graph import (
     add_edges,
     add_nodes,
@@ -118,21 +124,52 @@ def scrape_graph(data_dir: str,
                                      config=config,
                                      logger=logger)
 
+        accounts_data = record_date_scraped(accounts_data, account)
+
         add_nodes(graph, *followed)
         add_edges(graph, account, followed)
         save_graph_gml(graph, graph_path, logger)
-        all_account_stubs = accounts_with_centrality(graph,
-                                                     centrality_metric)
-        new_account_stubs = novel_account_stubs(accounts_data,
-                                                list(all_account_stubs),
-                                                poorest_centrality_rank)
-        new_accounts = full_accounts_with_centrality(new_account_stubs)
-        accounts_data = add_accounts_to_data(accounts_data,
-                                             list(new_accounts))
+
+        all_account_stubs = list(
+            accounts_with_centrality(graph,
+                                     centrality_metric)
+        )
+        new_account_stubs = list(
+            novel_account_stubs(accounts_data,
+                                all_account_stubs,
+                                poorest_centrality_rank)
+        )
+        new_accounts = list(full_accounts_with_centrality(new_account_stubs))
+
+        accounts_data = add_accounts_to_data(accounts_data, new_accounts)
+        accounts_data = update_centrality(accounts_data, all_account_stubs)
         save_dataframe_csv(accounts_data, accounts_path, logger, index=False)
 
         account = top_scraping_candidate(accounts_data,
                                          poorest_centrality_rank)
+
+
+def record_date_scraped(
+    data: pd.DataFrame, account: Account
+) -> pd.DataFrame:
+    all_accounts = accounts_from_dataframe(data)
+    updated_accounts = list(
+        _accounts_date_scraped(all_accounts, account.identifier)
+    )
+    return accounts_to_dataframe(updated_accounts)
+
+
+def _accounts_date_scraped(
+    accounts: Iterable[Account], account_id: str
+) -> Iterator[Account]:
+
+    for account in accounts:
+        if account.identifier == account_id:
+            account_data = asdict(account)
+            account_data['date_scraped'] = datetime.now()
+            yield Account(**account_data)
+        else:
+            yield account
 
 
 def novel_account_stubs(data: pd.DataFrame,
@@ -149,26 +186,50 @@ def novel_account_stubs(data: pd.DataFrame,
     existing_ids = set(data['identifier'])
     new_account_ids = relevant_ids.difference(existing_ids)
 
-    def is_new(account):
-        return account.identifier in new_account_ids
+    return (
+        account for account in new_accounts
+        if account.identifier in new_account_ids
+    )
 
-    return filter(is_new, new_accounts)
 
 def add_accounts_to_data(data: pd.DataFrame,
                          accounts: List[Account]) -> pd.DataFrame:
     new_data = accounts_to_dataframe(accounts)
     combined_data = pd.concat([data, new_data])
-    combined_sorted = combined_data.sort_values(["centrality"], ascending=False)
-    return combined_sorted
+    return combined_data
+
+
+def update_centrality(data: pd.DataFrame, accounts: List[AccountSummary]):
+    all_accounts = accounts_from_dataframe(data)
+    updated_accounts = list(
+        _accounts_with_centrality_from_summaries(all_accounts, accounts)
+    )
+    updated_data = accounts_to_dataframe(updated_accounts)
+    return updated_data.sort_values(by=['centrality'], ascending=False)
+
+
+def _accounts_with_centrality_from_summaries(
+        accounts: List[Account], summaries: List[AccountSummary]
+):
+    accounts_map = {account.identifier: account for account in accounts}
+    summaries_map = {summary.identifier: summary for summary in summaries}
+
+    for identifier, account in accounts_map.items():
+        summary = summaries_map.get(identifier)
+
+        if summary:
+            account_data = asdict(account)
+            account_data['centrality'] = summary.centrality
+            yield Account(**account_data)
+
+        else:
+            yield account
 
 
 def top_scraping_candidate(accounts_data: pd.DataFrame, total_scraped: int) -> Account:
     sorted_data = accounts_data.sort_values(["centrality"], ascending=False)
-    print(sorted_data)
     top_data = sorted_data.head(total_scraped)
-    print(top_data)
     candidates = top_data[top_data.date_scraped.isnull()]
-    print(candidates)
 
     try:
         row_data = next(candidates.itertuples(index=False))._asdict()

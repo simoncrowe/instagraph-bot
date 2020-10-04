@@ -106,10 +106,12 @@ def _getattr_from(name: str, objs: Iterable) -> Generator[object, None, None]:
 
 def accounts_to_dataframe(accounts: List[Account]) -> pd.DataFrame:
     data = {
-        field.name: _getattr_from(field.name, accounts)
+        field.name: list(_getattr_from(field.name, accounts))
         for field in fields(Account)
     }
-    index = (account.identifier for account in accounts)
+    index = [account.identifier for account in accounts]
+
+    #import ipdb; ipdb.set_trace()
 
     return pd.DataFrame(data, index)
 

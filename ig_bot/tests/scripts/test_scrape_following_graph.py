@@ -5,6 +5,7 @@ from mock import patch
 from os import mkdir, path
 import tempfile
 
+from freezegun import freeze_time
 import networkx as nx
 import pandas as pd
 import pytest
@@ -15,8 +16,10 @@ from ig_bot.scripts.scrape_following_graph import (
     add_accounts_to_data,
     full_accounts_with_centrality,
     novel_account_stubs,
+    record_date_scraped,
     scrape_graph,
     top_scraping_candidate,
+    update_centrality
 )
 
 TEST_DATA_DIR = path.join(path.dirname(__file__), 'data')
@@ -51,16 +54,29 @@ def account_one_data():
         'date_scraped': None,
     }
 
+@pytest.fixture
+def account_one_data_max_centrality(account_one_data):
+    account_one_data['centrality'] = 1
+    return account_one_data
 
 @pytest.fixture
 def account_one(account_one_data):
     return Account(**account_one_data)
 
 
+@pytest.fixture
+def account_one_max_centrality(account_one_data_max_centrality):
+    return Account(**account_one_data_max_centrality)
+
 
 @pytest.fixture
 def account_one_summary(account_one):
     return account_summary_from_obj(account_one)
+
+
+@pytest.fixture
+def account_one_summary_max_centrality(account_one_max_centrality):
+    return account_summary_from_obj(account_one_max_centrality)
 
 
 @pytest.fixture
@@ -223,6 +239,22 @@ def first_two_accounts_dataframe(account_one_data, account_two_data):
 
 
 @pytest.fixture
+def first_two_accounts_dataframe_account_one_max_centrality(
+    account_one_data_max_centrality, account_two_data
+):
+    return dataframe_from_account_data(account_one_data_max_centrality,
+                                       account_two_data)
+
+
+@pytest.fixture
+def first_two_accounts_dataframe_one_scraped(
+    account_one_data_with_date_scraped, account_two_data
+):
+    return dataframe_from_account_data(account_one_data_with_date_scraped,
+                                       account_two_data)
+
+
+@pytest.fixture
 def first_two_accounts_dataframe_both_scraped(
     account_one_data_with_date_scraped,
     account_two_data_with_date_scraped,
@@ -230,7 +262,7 @@ def first_two_accounts_dataframe_both_scraped(
     return dataframe_from_account_data(account_one_data_with_date_scraped,
                                        account_two_data_with_date_scraped)
 
-                                       
+
 @pytest.fixture
 def first_three_accounts_dataframe(
     account_one_data,
@@ -251,6 +283,22 @@ def first_three_accounts_dataframe_first_two_scraped(
     return dataframe_from_account_data(account_one_data_with_date_scraped,
                                        account_two_data_with_date_scraped,
                                        account_three_data)
+
+
+def test_record_scraping_date_sets_date_on_appropriate_row(
+    first_two_accounts_dataframe_one_scraped,
+    first_two_accounts_dataframe_both_scraped,
+    account_two,
+    account_two_with_date_scraped,
+):
+    with freeze_time(account_two_with_date_scraped.date_scraped):
+        resulting_data = record_date_scraped(
+            first_two_accounts_dataframe_one_scraped,
+            account_two
+        )
+
+    assert resulting_data.equals(first_two_accounts_dataframe_both_scraped)
+
 
 
 def test_novel_account_stubs_includes_missing_account_summary(
@@ -280,6 +328,19 @@ def test_novel_account_stubs_filters_out_excess_account_summary(
     assert account_three_summary in summaries
     assert account_four_summary.identifier not in summaries
 
+def test_update_centrality_updates_as_expected(
+        first_two_accounts_dataframe,
+        first_two_accounts_dataframe_account_one_max_centrality,
+        account_one_summary_max_centrality
+):
+    resulting_data = update_centrality(
+        first_two_accounts_dataframe, [account_one_summary_max_centrality]
+    )
+
+    assert resulting_data.equals(
+        first_two_accounts_dataframe_account_one_max_centrality
+    )
+
 
 def test_add_accounts_to_data_returns_full_dataframe(
     first_two_accounts_dataframe,
@@ -289,7 +350,7 @@ def test_add_accounts_to_data_returns_full_dataframe(
     resulting_dataframe = add_accounts_to_data(first_two_accounts_dataframe,
                                                [account_three])
 
-    assert all(resulting_dataframe == first_three_accounts_dataframe)
+    assert resulting_dataframe.equals(first_three_accounts_dataframe)
 
 
 def test_top_scraping_candidate_returns_appropriate_account(
@@ -359,6 +420,7 @@ def test_scrape_graph_username_and_files_in_data_dir(*_):
             scrape_graph(data_path, 1000, 'some_user')
 
 
+@freeze_time("2020-10-04 18:08:25")
 @patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
 @patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
 @patch('ig_bot.scripts.scrape_following_graph.account_by_id')
@@ -402,22 +464,16 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
     mock_account_by_id.side_effect = accounts_by_id.get
 
     followed_accounts_map =  {
-        account_one: [account_two_summary],
-        account_two: [account_one_summary, account_three_summary],
-        account_three: [
+        account_one.identifier: [account_two_summary],
+        account_two.identifier: [account_one_summary, account_three_summary],
+        account_three.identifier: [
             account_one_summary,
-            account_two_summary,
             account_four_summary
-        ],
-        account_four: [
-            account_one_summary,
-            account_two_summary,
-            account_three_summary
         ],
     }
 
     def fake_followed_accounts(account, ig_client, config, logger):
-        return followed_accounts_map.get(account)
+        return followed_accounts_map.get(account.identifier)
 
     mock_followed_accounts.side_effect = fake_followed_accounts
 
@@ -434,10 +490,11 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
 
         scrape_graph(data_path, 3, 'one', IN_DEGREE_CENTRALITY)
 
-        accounts = pd.read_csv(accounts_path)
-        assert all(accounts == expected_accounts_data)
+        accounts_data = pd.read_csv(accounts_path)
+        accounts_data.to_csv('~/git/instagraph-bot/ig_bot/tests/scripts/data/top-three-accounts-actual.csv', index=False)
+        assert accounts_data.equals(expected_accounts_data)
 
         graph = nx.read_gml(graph_path)
-        assert graph.nodes == expexted_graph.nodes
+        assert graph.nodes == expected_graph.nodes
         assert graph.edges == expected_graph.edges
 

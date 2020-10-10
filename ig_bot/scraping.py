@@ -18,7 +18,7 @@ def get_authenticated_igramscraper(username: str, password: str):
     """Gets an authenticated igramscraper Instagram client instance."""
     client = Instagram()
     client.with_credentials(username, password)
-    client.login()
+    client.login(two_step_verificator=True)
     return client
 
 

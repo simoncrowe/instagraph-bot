@@ -1,5 +1,5 @@
 -e git://github.com/simoncrowe/bot-scheduler.git#egg=bot-scheduler
--e git://github.com/realsirjoe/instagram-scraper.git@388d89b447c6ccba2dbcb43e73deff5f8fc51664#egg=igramscraper
+-e git://github.com/realsirjoe/instagram-scraper.git#egg=igramscraper
 
 beautifulsoup4==4.9.0
 click==7.0

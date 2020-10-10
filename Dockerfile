@@ -1,6 +1,6 @@
-FROM python:3.7-buster
+FROM python:3.8-buster
 
-ADD ./* $HOME/
-RUN pip install --no-cache-dir -r requirements.txt 
+ADD ./requirements.txt /build/
+RUN pip install --no-cache-dir -r /build/requirements.txt && rm -r /build
 
-ENV PYTHONPATH /ig
+ENV PYTHONPATH /

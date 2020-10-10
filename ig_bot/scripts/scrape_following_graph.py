@@ -43,15 +43,41 @@ from ig_bot.scripts.util import (
 @click.command()
 @click.argument('data_dir')
 @click.option('--username', '-u', type=str, help='Username of root node.')
-@click.option('--log-level', '-l', type=str)
+@click.option(
+    '--poorest-centrality-rank',
+    '-r',
+    type=str,
+    help=(
+        'The lowest ranked account in terms of centrality from which to '
+        'scrape follows. If all accounts at or above this rank have already '
+        'been scraped, this script will exit. '
+        'As rankings will change over time, this number is a lower bound '
+        'rather than a limit of the total number of accounts scraped.'
+    )
+)
 @click.option(
     '--centrality-metric',
-    '-c',
+    '-m',
     type=click.Choice(CENTRALITY_METRIC_FUNCTIONS.keys(), case_sensitive=False),
+    default=EIGENVECTOR_CENTRALITY,
     help='The measure determining the importance of an account.'
 )
-def scrape_following_graph(data_dir, username, log_level, centrality_metric):
-    scrape_graph(data_dir, username, log_level, centrality_metric)
+@click.option('--config-path', '-c', type=str, default='./config.yaml')
+@click.option('--log-level', '-l', type=str, default='INFO')
+def scrape_following_graph(
+    data_dir,
+    username,
+    poorest_centrality_rank,
+    centrality_metric,
+    config_path,
+    log_level
+):
+    scrape_graph(data_dir,
+                 username,
+                 poorest_centrality_rank,
+                 centrality_metric,
+                 config_path,
+                 log_level)
 
 
 def _load_graph(graph_path: str, logger: logging.Logger):
@@ -77,15 +103,15 @@ def _get_logger(data_dir, log_level: str) -> logging.Logger:
 
 def _load_config(config_path):
     with open(config_path, 'r') as fileobj:
-        return taml.safe_load(fileobj)
+        return yaml.safe_load(fileobj)
 
 
 def scrape_graph(data_dir: str,
+                 username: str,
                  poorest_centrality_rank: int,
-                 username: str = None,
-                 centrality_metric: str = EIGENVECTOR_CENTRALITY,
-                 config_path: str = 'config.yaml',
-                 log_level: str = 'INFO'):
+                 centrality_metric: str,
+                 config_path: str,
+                 log_level: str):
 
     # Create data directory if absent
     Path(data_dir).mkdir(parents=True, exist_ok=True)
@@ -246,4 +272,8 @@ def full_accounts_with_centrality(summaries: Iterable[AccountSummary]):
         account_data = asdict(account_by_id(summary.identifier))
         account_data['centrality'] = summary.centrality
         yield Account(**account_data)
+
+
+if __name__ == '__main__':
+    scrape_following_graph()
 

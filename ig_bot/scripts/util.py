@@ -42,9 +42,9 @@ def load_graph_gml(
         filepath: str,
         logger: logging.Logger
 ) -> nx.DiGraph:
-    logger.info(f'Loading graph from {filepath}...')
+    logger.info(f'Loading graph from {filepath}')
 
-    with open(filepath, 'r') as fileobj:
+    with open(filepath, 'rb') as fileobj:
         graph = nx.read_gml(fileobj)
 
     logger.info('Graph file loaded.')
@@ -65,5 +65,8 @@ def load_dataframe_csv(filepath: str, logger: logging.Logger) -> pd.DataFrame:
     logger.info(f'Loading DataFrame from {filepath}')
 
     with open(filepath, 'r') as fileobj:
-        return pd.read_csv(fileobj)
+        dataframe = pd.read_csv(fileobj)
+
+    logger.info("CSV file loaded.")
+    return dataframe
 

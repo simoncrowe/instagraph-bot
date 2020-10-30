@@ -4,6 +4,7 @@ from itertools import islice
 import logging
 from os import path
 from pathlib import Path
+from random import randint
 from typing import Iterable, Iterator, List
 
 import click
@@ -30,7 +31,8 @@ from ig_bot.scraping import (
     account_by_id,
     account_by_username,
     get_authenticated_igramscraper,
-    followed_accounts
+    followed_accounts,
+    random_sleep,
 )
 from ig_bot.scripts.util import (
     get_graph_file_path,
@@ -124,10 +126,10 @@ def scrape_graph(data_dir: str,
     config = _load_config(config_path)
     logger = _get_logger(data_dir, log_level)
 
-    graph = _load_graph(data_dir, logger)
-    accounts_data = _load_accounts(data_dir, logger)
+    graph = _load_graph(graph_path, logger)
+    accounts_data = _load_accounts(accounts_path, logger)
 
-    data_present = bool(graph) and bool(accounts_data)
+    data_present = bool(graph) and accounts_data is not None
 
     if data_present == bool(username):
         raise ValueError(
@@ -138,9 +140,13 @@ def scrape_graph(data_dir: str,
     ig_client = get_authenticated_igramscraper(**config['ig_auth'])
 
     if data_present:
+        logger.info("Data present in directory. Selecting scraping candidate...")
         account = top_scraping_candidate(accounts_data,
                                          poorest_centrality_rank)
+        logger.info(f"Proceeding to scrape account {account.username}")
+
     else:
+        logger.info("Data not present in directory.")
         account = account_by_username(username,
                                       ig_client,
                                       config=config,
@@ -149,11 +155,16 @@ def scrape_graph(data_dir: str,
         graph = nx.DiGraph()
         add_nodes(graph, account)
 
+        logger.info(f"Proceeding to scrape account {username}...")
+
     while account:
-        followed = followed_accounts(account,
-                                     ig_client,
-                                     config=config,
-                                     logger=logger)
+        logger.info(
+            f"Scraping summary of accounts followed by {account.username}..."
+        )
+        followed = list(
+            followed_accounts(account, ig_client, config=config, logger=logger)
+        )
+        logger.info(f"Scraped {len(followed)} accounts.")
 
         accounts_data = record_date_scraped(accounts_data, account)
 
@@ -161,6 +172,7 @@ def scrape_graph(data_dir: str,
         add_edges(graph, account, followed)
         save_graph_gml(graph, graph_path, logger)
 
+        logger.info("Detemining which followed accounts are new...")
         all_account_stubs = list(
             accounts_with_centrality(graph,
                                      centrality_metric)
@@ -170,19 +182,28 @@ def scrape_graph(data_dir: str,
                                 all_account_stubs,
                                 poorest_centrality_rank)
         )
+        logger.info(
+            f"{len(new_account_stubs)} relevant followed accounts are new."
+        )
+
+        logger.info("Scraping full data for new followed accounts...")
         new_accounts = list(
             full_accounts_with_centrality(new_account_stubs,
                                           ig_client,
                                           config,
                                           logger)
         )
+        logger.info(f"Data for {len(new_accounts)} scraped.")
 
         accounts_data = add_accounts_to_data(accounts_data, new_accounts)
         accounts_data = update_centrality(accounts_data, all_account_stubs)
         save_dataframe_csv(accounts_data, accounts_path, logger, index=False)
 
+        logger.info("Detemining next account whose follows to scrape...")
         account = top_scraping_candidate(accounts_data,
                                          poorest_centrality_rank)
+
+    logger.info("All relevantly high ranking accounts scraped. Exiting.")
 
 
 def record_date_scraped(
@@ -281,12 +302,33 @@ def full_accounts_with_centrality(summaries: Iterable[AccountSummary],
                                   client: Instagram,
                                   config: dict,
                                   logger: logging.Logger):
+
+    sleep_between_account_batches = config['sleep']['between_account_batches']
+    sleep_between_accounts = config['sleep']['between_accounts']
+    min_accounts_per_batch = config['accounts_per_batch']['minimum']
+    max_accounts_per_batch = config['accounts_per_batch']['maximum']
+
+    max_scraped_this_batch = randint(min_accounts_per_batch,
+                                     max_accounts_per_batch)
+    scraped_count = 0
+
     for summary in summaries:
+        logger.info(f"Scraping data for account {summary.username}")
+
         account_data = asdict(
             account_by_id(summary.identifier, client, config=config, logger=logger)
         )
         account_data['centrality'] = summary.centrality
         yield Account(**account_data)
+
+        scraped_count += 1
+        if scraped_count < max_scraped_this_batch:
+            random_sleep(**sleep_between_accounts, logger=logger)
+        else:
+            random_sleep(**sleep_between_account_batches, logger=logger)
+            scraped_count = 0
+            max_scraped_this_batch = randint(min_accounts_per_batch,
+                                             max_accounts_per_batch)
 
 
 if __name__ == '__main__':

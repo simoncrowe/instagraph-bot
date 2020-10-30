@@ -129,7 +129,7 @@ def test_followed_accounts_yields_followers(
     mock_client.get_following.return_value = {"accounts": [account_one_mock, account_two_mock]}
     mock_logger = mock.Mock()
     config = {
-        'scraping': {'follows_page_size': 100},
+        'follows_page_size': 100,
         'rate_limit_retries': 5,
         'exponential_sleep_base': 2.05,
         'exponential_sleep_offset': 10.3,
@@ -149,7 +149,7 @@ def test_followed_accounts_retries_on_rate_limiting(mock_exponential_sleep):
     mock_client = mock.Mock()
     mock_client.get_following.side_effect = InstagramException("429")
     config = {
-        'scraping': {'follows_page_size': 100},
+        'follows_page_size': 100,
         'rate_limit_retries': 5,
         'exponential_sleep_base': 2.05,
         'exponential_sleep_offset': 10.3,

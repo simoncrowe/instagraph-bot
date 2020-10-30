@@ -22,7 +22,7 @@ def get_authenticated_igramscraper(username: str, password: str):
     return client
 
 
-def _random_sleep(minimum: float, maximum: float, logger: logging.Logger):
+def random_sleep(minimum: float, maximum: float, logger: logging.Logger):
     duration = round(minimum + (random() * (maximum - minimum)), 2)
     logger.info(f'Sleeping for {duration} seconds...')
     time.sleep(duration)
@@ -51,6 +51,8 @@ def retry_on_rate_limiting(func):
                     base = config['exponential_sleep_base']
                     offset = config['exponential_sleep_offset']
                     exponential_sleep(attempt_number, base, offset, logger)
+                else:
+                    raise
 
         raise MaxRateLimitingRetriesExceeded(
             f"Function {func.__name__} still failed due to rate limiting "
@@ -70,7 +72,7 @@ def followed_accounts(
     response = client.get_following(
         account_id=follower.identifier,
      	count=follower.follows_count,
-     	page_size=config['scraping']['follows_page_size'],
+        page_size=config['follows_page_size'],
     )
     return (account_summary_from_obj(account) for account in response['accounts'])
        

@@ -20,7 +20,7 @@ def account_summary_from_obj(obj):
         identifier=obj.identifier,
         username=obj.username,
         full_name=obj.full_name,
-        centrality=obj.centrality,
+        centrality=getattr(obj, 'centrality', None),
     )
 
 

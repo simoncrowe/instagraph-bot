@@ -49,7 +49,7 @@ def retry_on_rate_limiting(func):
                     logger.exception("Scraping failed due to rate limiting")
 
                     base = config['exponential_sleep_base']
-                    offset = config['exponetial_sleep_offset']
+                    offset = config['exponential_sleep_offset']
                     exponential_sleep(attempt_number, base, offset, logger)
 
         raise MaxRateLimitingRetriesExceeded(

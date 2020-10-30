@@ -132,7 +132,7 @@ def test_followed_accounts_yields_followers(
         'scraping': {'follows_page_size': 100},
         'rate_limit_retries': 5,
         'exponential_sleep_base': 2.05,
-        'exponetial_sleep_offset': 10.3,
+        'exponential_sleep_offset': 10.3,
     }
 
     followed_generator = followed_accounts(follower, 
@@ -152,7 +152,7 @@ def test_followed_accounts_retries_on_rate_limiting(mock_exponential_sleep):
         'scraping': {'follows_page_size': 100},
         'rate_limit_retries': 5,
         'exponential_sleep_base': 2.05,
-        'exponetial_sleep_offset': 10.3,
+        'exponential_sleep_offset': 10.3,
     }
     mock_logger = mock.Mock()
 
@@ -173,7 +173,7 @@ def test_account_by_id_returns_account(account_one_mock, account_one):
     config = {
         'rate_limit_retries': 5,
         'exponential_sleep_base': 2.05,
-        'exponetial_sleep_offset': 10.3,
+        'exponential_sleep_offset': 10.3,
     }
 
     retrieved_account = account_by_id(account_one.identifier, 
@@ -193,7 +193,7 @@ def test_account_by_id_retries_on_rate_limiting(mock_exponential_sleep,
         'scraping': {'follows_page_size': 100},
         'rate_limit_retries': 5,
         'exponential_sleep_base': 2.05,
-        'exponetial_sleep_offset': 10.3,
+        'exponential_sleep_offset': 10.3,
     }
     mock_logger = mock.Mock()
 
@@ -214,7 +214,7 @@ def test_account_by_username_returns_account(account_one_mock, account_one):
     config = {
         'rate_limit_retries': 5,
         'exponential_sleep_base': 2.05,
-        'exponetial_sleep_offset': 10.3,
+        'exponential_sleep_offset': 10.3,
     }
 
     retrieved_account = account_by_username(account_one.username, 
@@ -233,7 +233,7 @@ def test_account_by_username_retries_on_rate_limiting(mock_exponential_sleep,
         'scraping': {'follows_page_size': 100},
         'rate_limit_retries': 5,
         'exponential_sleep_base': 2.05,
-        'exponetial_sleep_offset': 10.3,
+        'exponential_sleep_offset': 10.3,
     }
     mock_logger = mock.Mock()
 

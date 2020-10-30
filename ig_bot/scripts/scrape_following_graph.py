@@ -11,6 +11,8 @@ import networkx as nx
 import pandas as pd
 import yaml
 
+from igramscraper.instagram import Instagram
+
 from ig_bot.data import (
     Account,
     AccountSummary,
@@ -46,7 +48,7 @@ from ig_bot.scripts.util import (
 @click.option(
     '--poorest-centrality-rank',
     '-r',
-    type=str,
+    type=int,
     help=(
         'The lowest ranked account in terms of centrality from which to '
         'scrape follows. If all accounts at or above this rank have already '
@@ -139,7 +141,10 @@ def scrape_graph(data_dir: str,
         account = top_scraping_candidate(accounts_data,
                                          poorest_centrality_rank)
     else:
-        account = account_by_username(username)
+        account = account_by_username(username,
+                                      ig_client,
+                                      config=config,
+                                      logger=logger)
         accounts_data = accounts_to_dataframe([account])
         graph = nx.DiGraph()
         add_nodes(graph, account)
@@ -165,7 +170,12 @@ def scrape_graph(data_dir: str,
                                 all_account_stubs,
                                 poorest_centrality_rank)
         )
-        new_accounts = list(full_accounts_with_centrality(new_account_stubs))
+        new_accounts = list(
+            full_accounts_with_centrality(new_account_stubs,
+                                          ig_client,
+                                          config,
+                                          logger)
+        )
 
         accounts_data = add_accounts_to_data(accounts_data, new_accounts)
         accounts_data = update_centrality(accounts_data, all_account_stubs)
@@ -267,9 +277,14 @@ def top_scraping_candidate(accounts_data: pd.DataFrame, total_scraped: int) -> A
         return None
 
 
-def full_accounts_with_centrality(summaries: Iterable[AccountSummary]):
+def full_accounts_with_centrality(summaries: Iterable[AccountSummary],
+                                  client: Instagram,
+                                  config: dict,
+                                  logger: logging.Logger):
     for summary in summaries:
-        account_data = asdict(account_by_id(summary.identifier))
+        account_data = asdict(
+            account_by_id(summary.identifier, client, config=config, logger=logger)
+        )
         account_data['centrality'] = summary.centrality
         yield Account(**account_data)
 

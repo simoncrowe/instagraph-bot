@@ -3,7 +3,7 @@ from unittest import mock
 import networkx as nx
 import pytest
 
-from ig_bot.factories import AccountSummaryFactory
+from ig_bot.factories import AccountFactory
 from ig_bot.graph import (
     add_edges, 
     add_nodes, 
@@ -24,21 +24,21 @@ def account_one_mock():
 
 @pytest.fixture
 def account_one():
-    return AccountSummaryFactory(identifier='1',
+    return AccountFactory(identifier='1',
                                  username='one', 
                                  full_name='Account One')
 
 
 @pytest.fixture
 def account_two():
-    return AccountSummaryFactory(identifier='2',
+    return AccountFactory(identifier='2',
                                  username='two',
                                  full_name='Account Two')
 
 
 @pytest.fixture
 def account_three():
-    return AccountSummaryFactory(identifier='3',
+    return AccountFactory(identifier='3',
                                  username='three',
                                  full_name='Account Three')
 

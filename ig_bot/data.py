@@ -8,15 +8,16 @@ import pandas as pd
 
 
 @dataclass(frozen=True)
-class AccountSummary:
+class Account:
     identifier: str
     username: str
     full_name: str
     centrality: float = None
+    date_scraped: datetime = None
 
 
-def account_summary_from_obj(obj):
-    return AccountSummary(
+def account_from_obj(obj):
+    return Account(
         identifier=obj.identifier,
         username=obj.username,
         full_name=obj.full_name,
@@ -24,16 +25,16 @@ def account_summary_from_obj(obj):
     )
 
 
-def account_summary_to_camel_case(account_summary: AccountSummary) -> dict:
+def account_to_camel_case(account: Account) -> dict:
     return {
-        'identifier': account_summary.identifier,
-        'username': account_summary.username,
-        'fullName': account_summary.full_name,
+        'identifier': account.identifier,
+        'username': account.username,
+        'fullName': account.full_name,
     }
 
 
 @dataclass(frozen=True)
-class Account:
+class AccountDetails:
     identifier: str
     username: str
     full_name: str
@@ -59,8 +60,8 @@ class Account:
     centrality: float = None
     date_scraped: datetime = None
 
-def account_from_obj(obj):
-    return Account(
+def account_details_from_obj(obj):
+    return AccountDetails(
         identifier=obj.identifier,
         username=obj.username,
         full_name=obj.full_name,
@@ -110,8 +111,6 @@ def accounts_to_dataframe(accounts: List[Account]) -> pd.DataFrame:
         for field in fields(Account)
     }
     index = [account.identifier for account in accounts]
-
-    #import ipdb; ipdb.set_trace()
 
     return pd.DataFrame(data, index)
 

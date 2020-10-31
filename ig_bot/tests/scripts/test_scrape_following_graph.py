@@ -10,12 +10,12 @@ import networkx as nx
 import pandas as pd
 import pytest
 
-from ig_bot.data import Account, AccountSummary, account_summary_from_obj
+from ig_bot.data import Account, AccountDetails, account_from_obj
 from ig_bot.graph import IN_DEGREE_CENTRALITY
 from ig_bot.scripts.scrape_following_graph import (
     add_accounts_to_data,
     full_accounts_with_centrality,
-    novel_account_stubs,
+    novel_accounts,
     record_date_scraped,
     scrape_graph,
     top_scraping_candidate,
@@ -31,25 +31,6 @@ def account_one_data():
         'identifier': '1',
         'username': 'one',
         'full_name': 'User One',
-        'profile_pic_url': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
-        'profile_pic_url_hd': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
-        'biography': 'I am number one!',
-        'external_url': 'https://one.me',
-        'follows_count': 21,
-        'followed_by_count': 7,
-        'media_count': 300,
-        'is_private': False,
-        'is_verified': False,
-        'country_block': False,
-        'has_channel': True,
-        'highlight_reel_count': 52,
-        'is_business_account': False,
-        'is_joined_recently': True,
-        'business_category_name': None,
-        'business_email': None,
-        'business_phone_number': None,
-        'business_address_json': None,
-        'connected_fb_page': None,
         'centrality': 0.1,
         'date_scraped': None,
     }
@@ -71,12 +52,12 @@ def account_one_max_centrality(account_one_data_max_centrality):
 
 @pytest.fixture
 def account_one_summary(account_one):
-    return account_summary_from_obj(account_one)
+    return account_from_obj(account_one)
 
 
 @pytest.fixture
 def account_one_summary_max_centrality(account_one_max_centrality):
-    return account_summary_from_obj(account_one_max_centrality)
+    return account_from_obj(account_one_max_centrality)
 
 
 @pytest.fixture
@@ -97,25 +78,6 @@ def account_two_data():
         'identifier': '2',
         'username': 'two',
         'full_name': 'User Two',
-        'profile_pic_url': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
-        'profile_pic_url_hd': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
-        'biography': 'Two is company ;-)',
-        'external_url': 'https://two.me',
-        'follows_count': 255,
-        'followed_by_count': 74561,
-        'media_count': 4851,
-        'is_private': False,
-        'is_verified': True,
-        'country_block': False,
-        'has_channel': True,
-        'highlight_reel_count': 0,
-        'is_business_account': True,
-        'is_joined_recently': False,
-        'business_category_name': 'General Interest',
-        'business_email':' hi@twoiscompany.xxx',
-        'business_phone_number':  '+447885780327',
-        'business_address_json': None,
-        'connected_fb_page': None,
         'centrality': 0.04,
         'date_scraped': None,
     }
@@ -128,7 +90,7 @@ def account_two(account_two_data):
 
 @pytest.fixture
 def account_two_summary(account_two):
-    return account_summary_from_obj(account_two)
+    return account_from_obj(account_two)
 
 
 @pytest.fixture
@@ -149,25 +111,6 @@ def account_three_data():
         'identifier': '3',
         'username': 'three',
         'full_name': 'User Three',
-        'profile_pic_url': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
-        'profile_pic_url_hd': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
-        'biography': 'Three is a crowd.',
-        'external_url': 'https://threeisacrowd.net',
-        'follows_count': 4452,
-        'followed_by_count': 7411,
-        'media_count': 223,
-        'is_private': False,
-        'is_verified': True,
-        'country_block': False,
-        'has_channel': True,
-        'highlight_reel_count': 0,
-        'is_business_account': True,
-        'is_joined_recently': False,
-        'business_category_name': 'General Interest',
-        'business_email': 'contact@threeisacrowd.net',
-        'business_phone_number':  None,
-        'business_address_json': None,
-        'connected_fb_page': None,
         'centrality': 0.005,
         'date_scraped': None
     }
@@ -180,7 +123,7 @@ def account_three(account_three_data):
 
 @pytest.fixture
 def account_three_summary(account_three):
-    return account_summary_from_obj(account_three)
+    return account_from_obj(account_three)
 
 
 @pytest.fixture
@@ -189,25 +132,6 @@ def account_four_data():
         'identifier': '4',
         'username': 'four',
         'full_name': 'User Four',
-        'profile_pic_url': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
-        'profile_pic_url_hd': 'https://scontent-lht6-1.cdninstagram.com/v/t51.2885-19/s150x150/105988514_720111785229143_1716065946988954927_n.jpg?_nc_ht=scontent-lht6-1.cdninstagram.com&_nc_ohc=nvD5PDjaJOEAX91xG80&oh=2f4a2f789e2f66938babde42c5fbc3fe&oe=5F4EEC07',
-        'biography': 'Four!',
-        'external_url': 'https://four.zone',
-        'follows_count': 84,
-        'followed_by_count': 741,
-        'media_count': 55,
-        'is_private': False,
-        'is_verified': True,
-        'country_block': False,
-        'has_channel': True,
-        'highlight_reel_count': 0,
-        'is_business_account': True,
-        'is_joined_recently': False,
-        'business_category_name': 'General Interest',
-        'business_email': 'info@four.space',
-        'business_phone_number':  None,
-        'business_address_json': None,
-        'connected_fb_page': None,
         'centrality': 0.001,
         'date_scraped': None
     }
@@ -220,7 +144,7 @@ def account_four(account_four_data):
 
 @pytest.fixture
 def account_four_summary(account_four):
-    return account_summary_from_obj(account_four)
+    return account_from_obj(account_four)
 
 
 def dataframe_from_account_data(*data):
@@ -301,37 +225,38 @@ def test_record_scraping_date_sets_date_on_appropriate_row(
 
 
 
-def test_novel_account_stubs_includes_missing_account_summary(
+def test_novel_accounts_includes_missing_account_summary(
     first_two_accounts_dataframe,
     account_three_summary,
     account_three
 ):
-    summaries_filter = novel_account_stubs(first_two_accounts_dataframe,
-                                           [account_three_summary],
-                                           1)
+    summaries_filter = novel_accounts(first_two_accounts_dataframe,
+                                      [account_three_summary],
+                                      1)
 
     assert list(summaries_filter) == [account_three_summary]
 
 
-def test_novel_account_stubs_filters_out_excess_account_summary(
+def test_novel_accounts_filters_out_excess_account_summary(
     first_two_accounts_dataframe,
     account_three_summary,
     account_three,
     account_four_summary,
 ):
-    summaries_filter = novel_account_stubs(first_two_accounts_dataframe,
-                                           [account_three_summary, 
-                                            account_four_summary],
-                                           1)
-    summaries = list(summaries_filter)
+    accounts_filter = novel_accounts(first_two_accounts_dataframe,
+                                      [account_three_summary, 
+                                       account_four_summary],
+                                      1)
+    accounts = list(accounts_filter)
 
-    assert account_three_summary in summaries
-    assert account_four_summary.identifier not in summaries
+    assert account_three_summary in accounts
+    assert account_four_summary not in accounts
+
 
 def test_update_centrality_updates_as_expected(
         first_two_accounts_dataframe,
         first_two_accounts_dataframe_account_one_max_centrality,
-        account_one_summary_max_centrality
+        account_one_summary_max_centrality,
 ):
     resulting_data = update_centrality(
         first_two_accounts_dataframe, [account_one_summary_max_centrality]

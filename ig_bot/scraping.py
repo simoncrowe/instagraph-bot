@@ -7,7 +7,7 @@ from typing import Dict, Generator, List
 from igramscraper.instagram import Instagram
 from igramscraper.exception import InstagramException
 
-from ig_bot.data import Account, AccountSummary, account_from_obj, account_summary_from_obj
+from ig_bot.data import Account, account_from_obj
 
 
 class MaxRateLimitingRetriesExceeded(Exception):
@@ -18,7 +18,8 @@ def get_authenticated_igramscraper(username: str, password: str):
     """Gets an authenticated igramscraper Instagram client instance."""
     client = Instagram()
     client.with_credentials(username, password)
-    client.login(two_step_verificator=True)
+    #client.login(two_step_verificator=True)
+    client.login(two_step_verificator=False)
     return client
 
 
@@ -68,13 +69,15 @@ def followed_accounts(
         client: Instagram, 
         config: dict, 
         logger: logging.Logger
-) -> Generator[AccountSummary, None, None]:
+) -> Generator[Account, None, None]:
     response = client.get_following(
         account_id=follower.identifier,
-     	count=follower.follows_count,
+        count=config['max_followed_scraped'],
         page_size=config['follows_page_size'],
     )
-    return (account_summary_from_obj(account) for account in response['accounts'])
+
+    accounts = response['accounts'] if 'accounts' in response else []
+    return (account_from_obj(account) for account in accounts)
        
 
 @retry_on_rate_limiting

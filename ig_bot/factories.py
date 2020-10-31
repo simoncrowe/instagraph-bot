@@ -1,11 +1,11 @@
 import factory
 
-from ig_bot.data import Account, AccountSummary
+from ig_bot.data import Account, AccountDetails
 
 
 class AccountFactory(factory.Factory):
     class Meta:
-        model = Account
+        model = AccountDetails
     
     identifier = '1'
     username = 'janed'
@@ -31,9 +31,9 @@ class AccountFactory(factory.Factory):
     connected_fb_page = None
     
 
-class AccountSummaryFactory(factory.Factory):
+class AccountFactory(factory.Factory):
     class Meta:
-        model = AccountSummary
+        model = Account
 
     identifier = '1'
     username = 'janed'

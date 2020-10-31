@@ -9,6 +9,7 @@ from typing import Iterable, Iterator, List
 
 import click
 import networkx as nx
+from networkx.exception import PowerIterationFailedConvergence
 import pandas as pd
 import yaml
 
@@ -16,7 +17,6 @@ from igramscraper.instagram import Instagram
 
 from ig_bot.data import (
     Account,
-    AccountSummary,
     accounts_from_dataframe,
     accounts_to_dataframe,
 )
@@ -24,8 +24,8 @@ from ig_bot.graph import (
     add_edges,
     add_nodes,
     accounts_with_centrality,
-    CENTRALITY_METRIC_FUNCTIONS,
     EIGENVECTOR_CENTRALITY,
+    IN_DEGREE_CENTRALITY,
 )
 from ig_bot.scraping import (
     account_by_id,
@@ -59,27 +59,18 @@ from ig_bot.scripts.util import (
         'rather than a limit of the total number of accounts scraped.'
     )
 )
-@click.option(
-    '--centrality-metric',
-    '-m',
-    type=click.Choice(CENTRALITY_METRIC_FUNCTIONS.keys(), case_sensitive=False),
-    default=EIGENVECTOR_CENTRALITY,
-    help='The measure determining the importance of an account.'
-)
 @click.option('--config-path', '-c', type=str, default='./config.yaml')
 @click.option('--log-level', '-l', type=str, default='INFO')
 def scrape_following_graph(
     data_dir,
     username,
     poorest_centrality_rank,
-    centrality_metric,
     config_path,
     log_level
 ):
     scrape_graph(data_dir,
                  username,
                  poorest_centrality_rank,
-                 centrality_metric,
                  config_path,
                  log_level)
 
@@ -113,7 +104,6 @@ def _load_config(config_path):
 def scrape_graph(data_dir: str,
                  username: str,
                  poorest_centrality_rank: int,
-                 centrality_metric: str,
                  config_path: str,
                  log_level: str):
 
@@ -143,7 +133,7 @@ def scrape_graph(data_dir: str,
         logger.info("Data present in directory. Selecting scraping candidate...")
         account = top_scraping_candidate(accounts_data,
                                          poorest_centrality_rank)
-        logger.info(f"Proceeding to scrape account {account.username}")
+        logger.info(f"Proceeding to scrape account {account.username}.")
 
     else:
         logger.info("Data not present in directory.")
@@ -155,11 +145,20 @@ def scrape_graph(data_dir: str,
         graph = nx.DiGraph()
         add_nodes(graph, account)
 
-        logger.info(f"Proceeding to scrape account {username}...")
+        logger.info(f"Proceeding to scrape account {username}..")
+
+    sleep_between_account_batches = config['sleep']['between_account_batches']
+    sleep_between_accounts = config['sleep']['between_accounts']
+    min_accounts_per_batch = config['accounts_per_batch']['minimum']
+    max_accounts_per_batch = config['accounts_per_batch']['maximum']
+
+    max_scraped_this_batch = randint(min_accounts_per_batch,
+                                     max_accounts_per_batch)
+    scraped_this_batch = 0
 
     while account:
         logger.info(
-            f"Scraping summary of accounts followed by {account.username}..."
+            f"Scraping accounts followed by {account.username}..."
         )
         followed = list(
             followed_accounts(account, ig_client, config=config, logger=logger)
@@ -173,36 +172,34 @@ def scrape_graph(data_dir: str,
         add_edges(graph, account, followed)
         save_graph_gml(graph, graph_path, logger)
 
-        logger.info("Detemining which followed accounts are new...")
-        all_account_stubs = list(
-            accounts_with_centrality(graph,
-                                     centrality_metric)
+        logger.info(
+            "Detemining which highy ranked followed accounts are new..."
         )
-        new_account_stubs = list(
-            novel_account_stubs(accounts_data,
-                                all_account_stubs,
-                                poorest_centrality_rank)
+        all_accounts = list(accounts_from_graph(graph, logger))
+        new_accounts = list(
+            novel_accounts(accounts_data,
+                           all_accounts,
+                           poorest_centrality_rank)
         )
         logger.info(
-            f"{len(new_account_stubs)} relevant followed accounts are new."
+            f"Adding {len(new_accounts)} relevent followed accounts to CSV."
         )
-
-        logger.info("Scraping full data for new followed accounts...")
-        new_accounts = list(
-            full_accounts_with_centrality(new_account_stubs,
-                                          ig_client,
-                                          config,
-                                          logger)
-        )
-        logger.info(f"Data for {len(new_accounts)} accounts scraped.")
 
         accounts_data = add_accounts_to_data(accounts_data, new_accounts)
-        accounts_data = update_centrality(accounts_data, all_account_stubs)
+        accounts_data = update_centrality(accounts_data, all_accounts)
         save_dataframe_csv(accounts_data, accounts_path, logger, index=False)
 
-        logger.info("Detemining next account whose follows to scrape...")
         account = top_scraping_candidate(accounts_data,
                                          poorest_centrality_rank)
+ 
+        scraped_this_batch += 1
+        if scraped_this_batch < max_scraped_this_batch:
+            random_sleep(**sleep_between_accounts, logger=logger)
+        else:
+            random_sleep(**sleep_between_account_batches, logger=logger)
+            scraped_this_batch = 0
+            max_scraped_this_batch = randint(min_accounts_per_batch,
+                                             max_accounts_per_batch)
 
     logger.info("All relevantly high ranking accounts scraped. Exiting.")
 
@@ -230,9 +227,22 @@ def _accounts_date_scraped(
             yield account
 
 
-def novel_account_stubs(data: pd.DataFrame,
-                        new_accounts: List[AccountSummary],
-                        accounts_retained: int) -> Iterator[AccountSummary]:
+def accounts_from_graph(graph: nx.DiGraph,
+                        logger: logging.Logger) -> Iterator[Account]:
+    try:
+        yield from accounts_with_centrality(graph, EIGENVECTOR_CENTRALITY)
+
+    except PowerIterationFailedConvergence:
+        logger.warning(
+            "Convergence failed for eigenvector centrality algorithm. "
+            "Falling back on in-degree algorithm."
+        )
+        yield from accounts_with_centrality(graph, IN_DEGREE_CENTRALITY)
+
+
+def novel_accounts(data: pd.DataFrame,
+                   new_accounts: List[Account],
+                   accounts_retained: int) -> Iterator[Account]:
 
     accounts_by_centrality = sorted(new_accounts,
                                     key=lambda a: a.centrality,
@@ -257,7 +267,7 @@ def add_accounts_to_data(data: pd.DataFrame,
     return combined_data
 
 
-def update_centrality(data: pd.DataFrame, accounts: List[AccountSummary]):
+def update_centrality(data: pd.DataFrame, accounts: List[Account]):
     all_accounts = accounts_from_dataframe(data)
     updated_accounts = list(
         _accounts_with_centrality_from_summaries(all_accounts, accounts)
@@ -267,7 +277,7 @@ def update_centrality(data: pd.DataFrame, accounts: List[AccountSummary]):
 
 
 def _accounts_with_centrality_from_summaries(
-        accounts: List[Account], summaries: List[AccountSummary]
+    accounts: List[Account], summaries: List[Account]
 ):
     accounts_map = {account.identifier: account for account in accounts}
     summaries_map = {summary.identifier: summary for summary in summaries}
@@ -299,11 +309,11 @@ def top_scraping_candidate(accounts_data: pd.DataFrame, total_scraped: int) -> A
         return None
 
 
-def full_accounts_with_centrality(summaries: Iterable[AccountSummary],
+def full_accounts_with_centrality(summaries: Iterable[Account],
                                   client: Instagram,
                                   config: dict,
                                   logger: logging.Logger):
-
+    # TODO: Move or delete as unused?
     sleep_between_account_batches = config['sleep']['between_account_batches']
     sleep_between_accounts = config['sleep']['between_accounts']
     min_accounts_per_batch = config['accounts_per_batch']['minimum']

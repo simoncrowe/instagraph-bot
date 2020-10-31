@@ -168,6 +168,7 @@ def scrape_graph(data_dir: str,
 
         accounts_data = record_date_scraped(accounts_data, account)
 
+        logger.info("Adding new follows to graph...")
         add_nodes(graph, *followed)
         add_edges(graph, account, followed)
         save_graph_gml(graph, graph_path, logger)
@@ -193,7 +194,7 @@ def scrape_graph(data_dir: str,
                                           config,
                                           logger)
         )
-        logger.info(f"Data for {len(new_accounts)} scraped.")
+        logger.info(f"Data for {len(new_accounts)} accounts scraped.")
 
         accounts_data = add_accounts_to_data(accounts_data, new_accounts)
         accounts_data = update_centrality(accounts_data, all_account_stubs)

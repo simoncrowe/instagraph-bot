@@ -44,37 +44,6 @@ from ig_bot.scripts.util import (
 )
 
 
-@click.command()
-@click.argument('data_dir')
-@click.option('--username', '-u', type=str, help='Username of root node.')
-@click.option(
-    '--poorest-centrality-rank',
-    '-r',
-    type=int,
-    help=(
-        'The lowest ranked account in terms of centrality from which to '
-        'scrape follows. If all accounts at or above this rank have already '
-        'been scraped, this script will exit. '
-        'As rankings will change over time, this number is a lower bound '
-        'rather than a limit of the total number of accounts scraped.'
-    )
-)
-@click.option('--config-path', '-c', type=str, default='./config.yaml')
-@click.option('--log-level', '-l', type=str, default='INFO')
-def scrape_following_graph(
-    data_dir,
-    username,
-    poorest_centrality_rank,
-    config_path,
-    log_level
-):
-    scrape_graph(data_dir,
-                 username,
-                 poorest_centrality_rank,
-                 config_path,
-                 log_level)
-
-
 def _load_graph(graph_path: str, logger: logging.Logger):
     try:
         return load_graph_gml(graph_path, logger)
@@ -101,12 +70,30 @@ def _load_config(config_path):
         return yaml.safe_load(fileobj)
 
 
-def scrape_graph(data_dir: str,
-                 username: str,
-                 poorest_centrality_rank: int,
-                 config_path: str,
-                 log_level: str):
-
+@click.command()
+@click.argument('data_dir')
+@click.option('--username', '-u', type=str, help='Username of root node.')
+@click.option(
+    '--poorest-centrality-rank',
+    '-r',
+    type=int,
+    help=(
+        'The lowest ranked account in terms of centrality from which to '
+        'scrape follows. If all accounts at or above this rank have already '
+        'been scraped, this script will exit. '
+        'As rankings will change over time, this number is a lower bound '
+        'rather than a limit of the total number of accounts scraped.'
+    )
+)
+@click.option('--config-path', '-c', type=str, default='./config.yaml')
+@click.option('--log-level', '-l', type=str, default='INFO')
+def scrape_following_graph(
+    data_dir,
+    username,
+    poorest_centrality_rank,
+    config_path,
+    log_level
+):
     # Create data directory if absent
     Path(data_dir).mkdir(parents=True, exist_ok=True)
 

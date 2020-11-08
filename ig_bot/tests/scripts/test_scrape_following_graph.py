@@ -5,6 +5,7 @@ from mock import patch
 from os import mkdir, path
 import tempfile
 
+from click.testing import CliRunner
 from freezegun import freeze_time
 import networkx as nx
 import pandas as pd
@@ -12,12 +13,13 @@ import pytest
 
 from ig_bot.data import Account, AccountDetails, account_from_obj
 from ig_bot.graph import IN_DEGREE_CENTRALITY
+from ig_bot.scripts import scrape_following_graph
 from ig_bot.scripts.scrape_following_graph import (
     add_accounts_to_data,
     full_accounts_with_centrality,
     novel_accounts,
     record_date_scraped,
-    scrape_graph,
+    scrape_following_graph,
     top_scraping_candidate,
     update_centrality
 )
@@ -313,8 +315,11 @@ def test_scrape_graph_no_username_and_nonexistent_data_dir(_):
     with tempfile.TemporaryDirectory() as temp_dir:
         data_path = path.join(temp_dir, 'this_dir_does_not_exist')
 
-        with pytest.raises(ValueError):
-            scrape_graph(data_path, 1000)
+        command_args = [data_path]
+        result = CliRunner().invoke(scrape_following_graph, command_args)
+
+        assert result.exit_code != 0
+        assert isinstance(result.exception, ValueError)
 
 
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
@@ -323,8 +328,11 @@ def test_scrape_graph_no_username_and_empty_data_dir(_):
         data_path = path.join(temp_dir, 'data')
         mkdir(data_path)
 
-        with pytest.raises(ValueError):
-            scrape_graph(data_path, 1000)
+        command_args = [data_path]
+        result = CliRunner().invoke(scrape_following_graph, command_args)
+
+        assert result.exit_code != 0
+        assert isinstance(result.exception, ValueError)
 
 
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
@@ -341,12 +349,17 @@ def test_scrape_graph_username_and_files_in_data_dir(*_):
         accounts_path = path.join(data_path, 'accounts.csv')
         open(accounts_path, 'w').close()
 
-        with pytest.raises(ValueError):
-            scrape_graph(data_path, 1000, 'some_user')
+        command_args = [data_path, '--username', 'foo']
+        result = CliRunner().invoke(scrape_following_graph, command_args)
+
+        assert result.exit_code != 0
+        assert result.exception
 
 
 @freeze_time("2020-10-04 18:08:25")
+@patch('ig_bot.scripts.scrape_following_graph.random_sleep')
 @patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
+@patch('ig_bot.graph.CENTRALITY_METRIC_FUNCTIONS')
 @patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
 @patch('ig_bot.scripts.scrape_following_graph.account_by_id')
 @patch('ig_bot.scripts.scrape_following_graph.account_by_username')
@@ -356,7 +369,9 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         mock_account_by_username,
         mock_account_by_id,
         mock_followed_accounts,
+        mock_centrality_function_map,
         _mock_get_authenticated_igramscraper,
+        _mock_time_sleep,
         account_one,
         account_one_summary,
         account_two,
@@ -372,35 +387,57 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
             'password': 'bar',
         },
         'rate_limit_retries': 3,
-        'scraping': {
-            'follows_page_size': 5
+        'exponential_sleep_base': 6,
+        'exponential_sleep_offset': 300,
+        'max_followed_scraped': 9999,
+        'follows_page_size': 5,
+        'accounts_per_batch': {
+            'minimum': 4,
+            'maximum': 9,
+        },
+        'sleep': {
+            'between_account_batches': {
+                'minimum': 300,
+                'maximum': 600,
+            },
+            'between_accounts': {
+                'minimum': 15,
+                'maximum': 45,
+            }
         }
     }
     mock_load_config.return_value = config
 
-    accounts_by_username = {account_one.username: account_one}
-    mock_account_by_username.side_effect = accounts_by_username.get
+    def fake_account_by_username(username, *args, **kwargs):
+        return {account_one.username: account_one}.get(username)
 
-    accounts_by_id = {
-        account_two.identifier: account_two,
-        account_three.identifier: account_three,
-        account_four.identifier: account_four,
-    }
-    mock_account_by_id.side_effect = accounts_by_id.get
+    mock_account_by_username.side_effect = fake_account_by_username
 
-    followed_accounts_map =  {
-        account_one.identifier: [account_two_summary],
-        account_two.identifier: [account_one_summary, account_three_summary],
-        account_three.identifier: [
-            account_one_summary,
-            account_four_summary
-        ],
-    }
+    def fake_account_by_id(identifier, *args, **kwargs):
+        return {
+            account_two.identifier: account_two,
+            account_three.identifier: account_three,
+            account_four.identifier: account_four,
+        }.get(identifier)
 
-    def fake_followed_accounts(account, ig_client, config, logger):
-        return followed_accounts_map.get(account.identifier)
+    mock_account_by_id.side_effect = fake_account_by_id
+
+    def fake_followed_accounts(account, *args, **kwargs):
+        return {
+            account_one.identifier: [account_two_summary],
+            account_two.identifier: [account_one_summary, account_three_summary],
+            account_three.identifier: [
+                account_one_summary,
+                account_four_summary
+            ],
+        }.get(account.identifier)
 
     mock_followed_accounts.side_effect = fake_followed_accounts
+
+    def fake_centrality_function_get(key):
+        return nx.in_degree_centrality
+
+    mock_centrality_function_map.__getitem__.side_effect = fake_centrality_function_get
 
     expected_graph_path = path.join(TEST_DATA_DIR, 'all-four-accounts.gml')
     expected_graph = nx.read_gml(expected_graph_path)
@@ -413,9 +450,20 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         graph_path = path.join(data_path, 'graph.gml')
         accounts_path = path.join(data_path, 'accounts.csv')
 
-        scrape_graph(data_path, 3, 'one', IN_DEGREE_CENTRALITY)
+        command_args = [
+            data_path,
+            '--username',
+            'one',
+            '--poorest-centrality-rank',
+            '3'
+        ]
+        result = CliRunner().invoke(scrape_following_graph, command_args)
+
+        assert not result.exception
+        assert result.exit_code == 0
 
         accounts_data = pd.read_csv(accounts_path)
+        # TODO: delete line below when nolonger needed
         accounts_data.to_csv('~/git/instagraph-bot/ig_bot/tests/scripts/data/top-three-accounts-actual.csv', index=False)
         assert accounts_data.equals(expected_accounts_data)
 

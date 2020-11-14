@@ -2,7 +2,8 @@ from datetime import datetime
 import json
 import logging
 from random import choices
-from typing import List
+import shutil
+from typing import List, Tuple
 
 import click
 from nltk.tokenize import RegexpTokenizer
@@ -17,7 +18,7 @@ COCO_SPLIT_PROPORTIONS = {
 }
 
 
-def split_split_choices():
+def split_choices():
     population = list(COCO_SPLIT_PROPORTIONS.keys())
     weights = list(COTO_SPLIT_PROPORTIONS.values())
     
@@ -25,7 +26,7 @@ def split_split_choices():
         yield choices(population, weights=weights)[0]
 
 split_choice = split_choices()
-insta_tokeniser = RegexpTokenizer(r"[#@'_\w]+")
+insta_tokenizer = RegexpTokenizer(r"[#'_\w]+")
 
 
 def load_raw_image_data(root_dir, image_id):
@@ -40,10 +41,18 @@ def load_raw_image_data(root_dir, image_id):
             with open(path.join(dirpath, "data.json"), 'r') as fd:
                 return json.load(fd)
 
-def tokenize(caption: str) -> List[str]:
-    tokens = insta_tokeniser.tokenise(caption)
-    # Remove usernames
-    return [token for token in tokens if not token.startswith("@")
+
+def get_caption(raw_data: dict) -> str:
+    caption_node = raw_data["edge_media_to_caption"]["edges"][0]
+    return caption_node["text"]
+
+
+def clean_caption_and_tokens(raw_caption: str) -> Tuple[str, List[str]]:
+    tokens = insta_tokenizer.tokenize(raw_caption)
+    # Reconstuct caption with no punctuation except for "#" and "'"
+    # Usernames are split on "." and "_", and do not start with "@"
+    caption = " ".join(tokens)
+    return caption, cleaned_tokens
 
 
 def image_data(image_id: int,
@@ -57,11 +66,12 @@ def image_data(image_id: int,
     split = next(split_choice)
     ouput_dirname = f"{images_dirname}_{split}"
     
-    caption = get_caption(raw_data)
+    raw_caption = get_caption(raw_data)
+    caption, tokens = clean_caption_and_tokens(raw_caption)
     
     sentence = {
         "raw": caption,
-        "tokens": insta_tokeniser.tokenise(caption),
+        "tokens": tokens,
         "imid": image_id,
         "sentid": image_id,
     }
@@ -100,6 +110,23 @@ def all_image_data(image_dir: str, media_dir: str, logger: logging.Logger):
         yield coco_data
 
 
+def copy_images_to_dataset(data: json,
+                           from_dir: str,
+                           to_dir: str,
+                           logger: logging.Logger):
+
+    split_dirname = data["filepath"]
+    split_subdirectory = path.join(to_dir, split_subdirectory)      
+    # Create directory if absent
+    Path(split_subdirectory).mkdir(parents=True, exist_ok=True)
+
+    filename = data["filename"]
+    from_path = path.join(from_dir, filename)
+    to_path = path.join(split_subdirectory, filename)
+    
+    logger.info(f"Copying {from_path} to {to_path}")
+    shutil.copyfile(in_path, out_path)
+
 
 @click.command()
 @click.option(
@@ -117,23 +144,29 @@ def all_image_data(image_dir: str, media_dir: str, logger: logging.Logger):
     required=True,
 )
 @click.option(
-    "--output-path", 
+    "--output-directory", 
     "-o", 
-    "output", 
-    type=click.File("w"), 
+    "output_dir", 
+    type=click.Path(exists=True, file_okay=False),
     required=True
 )
 @click.option('--dataset-name', '-n', type=str, required=True)
 @click.option('--log-level', '-l', type=str, default='DEBUG')
-def gather_and_resize(images_dir, media_dir, output, dataset_name, log_level):
+def make_coco_dataset(images_dir, media_dir, output, dataset_name, log_level):
     
     logging.basicConfig(level=log_level)
     logger = logging.getLogger(__name__)
-
-    data = {
-        "dataset": dataset_name, 
-        "images"=list(image_data(images_dir, media_dir, logger))
-    }
     
-    json.dump(data, output)
+    all_image_data = list(image_data(images_dir, media_dir, logger))
+    
+    for image_datum in all_image_data:
+        copy_image_to_dataset(image_datum, images_dir, output_dir)
+    
+    coco_data = {"dataset": dataset_name, "images": data}
+    coco_data_path = path.join(output_dir, "data.json")
+    json.dump(complete_data, coco_data_path)
+
+
+if __name__ == "__main__":
+    make_coco_dataset()
 

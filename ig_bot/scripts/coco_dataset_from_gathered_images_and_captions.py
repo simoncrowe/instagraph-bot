@@ -151,7 +151,7 @@ def copy_images_to_dataset(data: json,
     "--output-directory", 
     "-o", 
     "output_dir", 
-    type=click.Path(exists=True, file_okay=False),
+    type=click.Path(file_okay=False),
     required=True
 )
 @click.option('--dataset-name', '-n', type=str, required=True)

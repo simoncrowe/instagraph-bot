@@ -3,12 +3,12 @@ import json
 import logging
 from random import choices
 import shutil
+import sys
 from typing import List, Tuple
 
 import click
 from nltk.tokenize import RegexpTokenizer
 from os import path, walk
-
 
 COCO_SPLIT_PROPORTIONS = {
     'test': 0.040555776359226844,
@@ -90,10 +90,11 @@ def image_data(image_id: int,
 def all_image_data(image_dir: str, media_dir: str, logger: logging.Logger):
     images_dirname = path.basename(path.normpath(image_dir))
 
-    _, _, filenames = next(os.walk(image_dir))
+    _, _, filenames = next(walk(image_dir))
     for i, image_filename in enumerate(filenames):
         image_id, _ = path.splitext(image_filename)
-
+        
+        logger.info(f"Looking scraped data for image {image_id}...")
         raw_image_data = load_raw_image_data(media_dir, image_id)
 
         if not raw_image_data:
@@ -152,17 +153,26 @@ def copy_images_to_dataset(data: json,
 )
 @click.option('--dataset-name', '-n', type=str, required=True)
 @click.option('--log-level', '-l', type=str, default='DEBUG')
-def make_coco_dataset(images_dir, media_dir, output, dataset_name, log_level):
+def make_coco_dataset(images_dir, 
+                      media_dir,
+                      output_dir,
+                      dataset_name,
+                      log_level):
     
     logging.basicConfig(level=log_level)
     logger = logging.getLogger(__name__)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    all_images_data = list(all_image_data(images_dir, media_dir, logger))
     
-    all_image_data = list(image_data(images_dir, media_dir, logger))
-    
-    for image_datum in all_image_data:
+    for image_datum in all_images_data:
         copy_image_to_dataset(image_datum, images_dir, output_dir)
     
-    coco_data = {"dataset": dataset_name, "images": data}
+    coco_data = {"dataset": dataset_name, "images": all_images_data}
     coco_data_path = path.join(output_dir, "data.json")
     json.dump(complete_data, coco_data_path)
 

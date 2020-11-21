@@ -29,19 +29,6 @@ split_choice = split_choices()
 insta_tokenizer = RegexpTokenizer(r"[#'_\w]+")
 
 
-def load_raw_image_data(root_dir, image_id):
-    for dirpath, _, filenames in walk(root_dir):
-        
-        if "data.json" not in filenames:
-            continue
-        
-        dir_image_id = path.basename(path.normpath(dirpath))
-        if dir_image_id == image_id:
-
-            with open(path.join(dirpath, "data.json"), 'r') as fd:
-                return json.load(fd)
-
-
 def get_caption(raw_data: dict) -> str:
     caption_node = raw_data["edge_media_to_caption"]["edges"][0]
     return caption_node["text"]
@@ -52,7 +39,7 @@ def clean_caption_and_tokens(raw_caption: str) -> Tuple[str, List[str]]:
     # Reconstuct caption with no punctuation except for "#" and "'"
     # Usernames are split on "." and "_", and do not start with "@"
     caption = " ".join(tokens)
-    return caption, cleaned_tokens
+    return caption, tokens
 
 
 def image_data(image_id: int,
@@ -91,10 +78,23 @@ def all_image_data(image_dir: str, media_dir: str, logger: logging.Logger):
     images_dirname = path.basename(path.normpath(image_dir))
 
     _, _, filenames = next(walk(image_dir))
-    for i, image_filename in enumerate(filenames):
-        image_id, _ = path.splitext(image_filename)
-        
-        logger.info(f"Looking scraped data for image {image_id}...")
+    image_ids = set(path.splitext(filename)[0] for filename in filenames)
+
+    coco_id = 0
+
+    for dirpath, _, filenames in walk(root_dir):
+
+        if "data.json" not in filenames:
+            continue
+
+        image_id = path.basename(path.normpath(dirpath))
+        if image_id not in image_ids:
+            continue
+
+        with open(path.join(dirpath, "data.json"), 'r') as fd:
+            raw_image_data =  json.load(fd)
+
+        logger.info(f"Getting scraped data for image {image_id}...")
         raw_image_data = load_raw_image_data(media_dir, image_id)
 
         if not raw_image_data:
@@ -105,9 +105,11 @@ def all_image_data(image_dir: str, media_dir: str, logger: logging.Logger):
                                image_filename,
                                raw_image_data,
                                images_dirname,
-                               coco_id=i)
+                               coco_id=coco_id)
+
+        coco_id += 1
         logger.info(f"Generated COCO data from scraped data for image {image_id}")
-        
+
         yield coco_data
 
 
@@ -117,7 +119,8 @@ def copy_images_to_dataset(data: json,
                            logger: logging.Logger):
 
     split_dirname = data["filepath"]
-    split_subdirectory = path.join(to_dir, split_subdirectory)      
+    split = next(split_choice)
+    split_subdirectory = path.join(to_dir, split)
     # Create directory if absent
     Path(split_subdirectory).mkdir(parents=True, exist_ok=True)
 

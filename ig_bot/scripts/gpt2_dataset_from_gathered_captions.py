@@ -25,6 +25,13 @@ def get_caption(raw_data: dict) -> str:
     return caption_node["text"]
 
 
+def clean_token(raw_token: str):
+    return raw_token.replace("@", "")
+
+def clean_caption(raw_caption: str):
+    tokens = (t for t in raw_caption.split() if t)
+    return " ".join(clean_token(t) for t in tokens)
+
 def image_data(image_id: int,
                image_filename: str,
                raw_data: dict,
@@ -35,7 +42,9 @@ def image_data(image_id: int,
     
     raw_caption = get_caption(raw_data)
     
-    return raw_caption
+    caption = clean_caption(raw_caption)
+
+    return f"<|startoftext|>{caption}<|endoftext|>"
 
 
 def all_image_data(image_dir: str, media_dir: str, logger: logging.Logger):
@@ -71,16 +80,16 @@ def all_image_data(image_dir: str, media_dir: str, logger: logging.Logger):
         
         try: 
             caption = image_data(image_id,
-                                   image_filename,
-                                   raw_image_data,
-                                   images_dirname,
-                                   coco_id=coco_id)
+                                 image_filename,
+                                 raw_image_data,
+                                 images_dirname,
+                                 coco_id=coco_id)
         except NoCaptionError:
             logger.info(f"Image {image_id} has no caption. Skipping...")
             continue
 
         coco_id += 1
-        logger.info(f"Generated COCO data from scraped data for image {image_id}")
+        logger.info(f"Generated GPT2 data from scraped data for image {image_id}")
 
         yield caption
 
@@ -114,16 +123,16 @@ def make_dataset(images_dir,
                  output_dir,
                  dataset_name,
                  log_level):
-    
+
     logging.basicConfig(level=log_level)
     logger = logging.getLogger(__name__)
 
     all_captions = list(all_image_data(images_dir, media_dir, logger))
-    
-    with open(coco_data_path, "w") as fileobj:
+    data_path = path.join(output_dir, f"captions.txt")
+
+    with open(data_path, "w") as fileobj:
         fileobj.write("\n".join(all_captions))
 
 
 if __name__ == "__main__":
     make_dataset()
-

@@ -3,7 +3,7 @@ import factory
 from ig_bot.data import Account, AccountDetails
 
 
-class AccountFactory(factory.Factory):
+class AccountDetailsFactory(factory.Factory):
     class Meta:
         model = AccountDetails
     

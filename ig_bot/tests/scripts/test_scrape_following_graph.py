@@ -3,10 +3,12 @@ from datetime import datetime
 from itertools import chain
 from mock import patch
 from os import mkdir, path
+import shutil
 import tempfile
 
 from click.testing import CliRunner
 from freezegun import freeze_time
+from igramscraper.instagram import InstagramNotFoundException
 import networkx as nx
 import pandas as pd
 import pytest
@@ -27,7 +29,7 @@ TEST_DATA_DIR = path.join(path.dirname(__file__), 'data')
 @pytest.fixture
 def account_one_data():
     return {
-        'identifier': '1',
+        'identifier': 1,
         'username': 'one',
         'full_name': 'User One',
         'centrality': 0.1,
@@ -52,16 +54,6 @@ def account_one_max_centrality(account_one_data_max_centrality):
 
 
 @pytest.fixture
-def account_one_summary(account_one):
-    return account_from_obj(account_one)
-
-
-@pytest.fixture
-def account_one_summary_max_centrality(account_one_max_centrality):
-    return account_from_obj(account_one_max_centrality)
-
-
-@pytest.fixture
 def account_one_data_with_date_scraped(account_one_data):
     account_one_data_scraped = account_one_data.copy()
     account_one_data_scraped['date_scraped'] = datetime(year=2020, month=10, day=4)
@@ -76,7 +68,7 @@ def account_one_with_date_scraped(account_one_data_with_date_scraped):
 @pytest.fixture
 def account_two_data():
     return {
-        'identifier': '2',
+        'identifier': 2,
         'username': 'two',
         'full_name': 'User Two',
         'centrality': 0.04,
@@ -87,11 +79,6 @@ def account_two_data():
 @pytest.fixture
 def account_two(account_two_data):
     return Account(**account_two_data)
-
-
-@pytest.fixture
-def account_two_summary(account_two):
-    return account_from_obj(account_two)
 
 
 @pytest.fixture
@@ -109,7 +96,7 @@ def account_two_with_date_scraped(account_two_data_with_date_scraped):
 @pytest.fixture
 def account_three_data():
     return {
-        'identifier': '3',
+        'identifier': 3,
         'username': 'three',
         'full_name': 'User Three',
         'centrality': 0.005,
@@ -123,14 +110,9 @@ def account_three(account_three_data):
 
 
 @pytest.fixture
-def account_three_summary(account_three):
-    return account_from_obj(account_three)
-
-
-@pytest.fixture
 def account_four_data():
     return {
-        'identifier': '4',
+        'identifier': 4,
         'username': 'four',
         'full_name': 'User Four',
         'centrality': 0.001,
@@ -144,8 +126,35 @@ def account_four(account_four_data):
 
 
 @pytest.fixture
-def account_four_summary(account_four):
-    return account_from_obj(account_four)
+def account_five_data():
+    return {
+        'identifier': 5,
+        'username': 'five',
+        'full_name': 'User Five',
+        'centrality': 0,
+        'date_scraped': None
+    }
+
+
+@pytest.fixture
+def account_five(account_five_data):
+    return Account(**account_five_data)
+
+
+@pytest.fixture
+def account_six_data():
+    return {
+        'identifier': 6,
+        'username': 'six',
+        'full_name': 'User Six',
+        'centrality': 0,
+        'date_scraped': None
+    }
+
+
+@pytest.fixture
+def account_six(account_six_data):
+    return Account(**account_six_data)
 
 
 def dataframe_from_account_data(*data):
@@ -227,39 +236,36 @@ def test_record_scraping_date_sets_date_on_appropriate_row(
 
 def test_novel_accounts_includes_missing_account_summary(
     first_two_accounts_dataframe,
-    account_three_summary,
     account_three
 ):
     summaries_filter = novel_accounts(first_two_accounts_dataframe,
-                                      [account_three_summary],
+                                      [account_three],
                                       1)
 
-    assert list(summaries_filter) == [account_three_summary]
+    assert list(summaries_filter) == [account_three]
 
 
 def test_novel_accounts_filters_out_excess_account_summary(
     first_two_accounts_dataframe,
-    account_three_summary,
     account_three,
-    account_four_summary,
+    account_four,
 ):
     accounts_filter = novel_accounts(first_two_accounts_dataframe,
-                                     [account_three_summary,
-                                      account_four_summary],
+                                     [account_three, account_four],
                                      1)
     accounts = list(accounts_filter)
 
-    assert account_three_summary in accounts
-    assert account_four_summary not in accounts
+    assert account_three in accounts
+    assert account_four not in accounts
 
 
 def test_update_centrality_updates_as_expected(
         first_two_accounts_dataframe,
         first_two_accounts_dataframe_account_one_max_centrality,
-        account_one_summary_max_centrality,
+        account_one_max_centrality,
 ):
     resulting_data = update_centrality(
-        first_two_accounts_dataframe, [account_one_summary_max_centrality]
+        first_two_accounts_dataframe, [account_one_max_centrality]
     )
 
     assert resulting_data.equals(
@@ -369,13 +375,9 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         mock_get_authenticated_igramscraper,
         mock_time_sleep,
         account_one,
-        account_one_summary,
         account_two,
-        account_two_summary,
         account_three,
-        account_three_summary,
         account_four,
-        account_four_summary,
 ):
     config = {
         'ig_auth': {
@@ -404,20 +406,25 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
     }
     mock_load_config.return_value = config
 
+    account_by_username_map =  {account_one.username: account_one}
+
     def fake_account_by_username(username, *args, **kwargs):
-        return {account_one.username: account_one}.get(username)
+        if username not in account_by_username_map:
+            raise InstagramNotFoundException
+        return account_by_username_map[username]
 
     mock_account_by_username.side_effect = fake_account_by_username
 
+    followed_map = {
+        account_one.identifier: [account_two],
+        account_two.identifier: [account_one, account_three],
+        account_three.identifier: [account_one, account_four],
+    }
+
     def fake_followed_accounts(account, *args, **kwargs):
-        return {
-            account_one.identifier: [account_two_summary],
-            account_two.identifier: [account_one_summary, account_three_summary],
-            account_three.identifier: [
-                account_one_summary,
-                account_four_summary
-            ],
-        }.get(account.identifier)
+        if account.identifier not in followed_map:
+            return list()
+        return followed_map[account.identifier]
 
     mock_followed_accounts.side_effect = fake_followed_accounts
 
@@ -464,6 +471,123 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
 
     mock_load_config.assert_called_once()
     mock_account_by_username.assert_called()
+    mock_followed_accounts.assert_called()
+    mock_centrality_function_map.__getitem__.assert_called()
+    mock_get_authenticated_igramscraper.assert_called()
+    mock_time_sleep.assert_called()
+
+@freeze_time("2020-10-04 18:08:25")
+@patch('ig_bot.scripts.scrape_following_graph.random_sleep')
+@patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
+@patch('ig_bot.graph.CENTRALITY_METRIC_FUNCTIONS')
+@patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
+@patch('ig_bot.scripts.scrape_following_graph.account_by_username')
+@patch('ig_bot.scripts.scrape_following_graph._load_config')
+def test_scrape_graph_updates_existing_data_dir(
+        mock_load_config,
+        mock_account_by_username,
+        mock_followed_accounts,
+        mock_centrality_function_map,
+        mock_get_authenticated_igramscraper,
+        mock_time_sleep,
+        account_one,
+        account_two,
+        account_three,
+        account_four,
+        account_five,
+        account_six,
+):
+    config = {
+        'ig_auth': {
+            'username': 'foo',
+            'password': 'bar',
+        },
+        'rate_limit_retries': 3,
+        'exponential_sleep_base': 6,
+        'exponential_sleep_offset': 300,
+        'max_followed_scraped': 9999,
+        'follows_page_size': 5,
+        'accounts_per_batch': {
+            'minimum': 4,
+            'maximum': 9,
+        },
+        'sleep': {
+            'between_account_batches': {
+                'minimum': 300,
+                'maximum': 600,
+            },
+            'between_accounts': {
+                'minimum': 15,
+                'maximum': 45,
+            }
+        }
+    }
+    mock_load_config.return_value = config
+
+    followed_map = {
+        account_one.identifier: [account_two],
+        account_two.identifier: [account_one, account_three],
+        account_three.identifier: [account_one, account_four],
+        account_four.identifier: [account_five, account_six],
+        account_five.identifier: [],
+        account_six.identifier: [account_one, account_three,
+                                 account_four, account_five]
+    }
+
+    def fake_followed_accounts(account, *args, **kwargs):
+        return followed_map[account.identifier]
+ 
+    mock_followed_accounts.side_effect = fake_followed_accounts
+
+    def fake_centrality_function_get(key):
+        return nx.in_degree_centrality
+
+    mock_centrality_function_map.__getitem__.side_effect = fake_centrality_function_get
+
+    starting_graph_path = path.join(TEST_DATA_DIR,
+                                    'scrape_following_graph',
+                                    'starting_data_dir',
+                                    'all-four-accounts.gml')
+    starting_csv_path = path.join(TEST_DATA_DIR,
+                                  'scrape_following_graph',
+                                  'starting_data_dir',
+                                  'top-four-accounts.csv')
+
+    expected_graph_path = path.join(TEST_DATA_DIR,
+                                    'scrape_following_graph',
+                                    'expected_data_dir',
+                                    'all-six-accounts.gml')
+    expected_graph = nx.read_gml(expected_graph_path)
+    expected_csv_path = path.join(TEST_DATA_DIR,
+                                  'scrape_following_graph',
+                                  'expected_data_dir',
+                                  'top-four-accounts.csv')
+    expected_accounts_data = pd.read_csv(expected_csv_path)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        data_path = path.join(temp_dir, 'data')
+        graph_path = path.join(data_path, 'graph.gml')
+        accounts_path = path.join(data_path, 'accounts.csv')
+
+        mkdir(data_path)
+        shutil.copy(starting_graph_path, graph_path)
+        shutil.copy(starting_csv_path, accounts_path)
+
+        command_args = [data_path, '--poorest-centrality-rank', '4']
+        result = CliRunner().invoke(scrape_following_graph, command_args)
+        import ipdb; ipdb.set_trace()
+        assert not result.exception
+        assert result.exit_code == 0
+
+        accounts_data = pd.read_csv(accounts_path)
+        assert accounts_data.equals(expected_accounts_data)
+
+        graph = nx.read_gml(graph_path)
+        assert graph.nodes == expected_graph.nodes
+        assert graph.edges == expected_graph.edges
+
+    mock_load_config.assert_called_once()
+    mock_account_by_username.assert_not_called()
     mock_followed_accounts.assert_called()
     mock_centrality_function_map.__getitem__.assert_called()
     mock_get_authenticated_igramscraper.assert_called()

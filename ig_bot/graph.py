@@ -61,5 +61,10 @@ def accounts_with_centrality(
         if not data:
             print(f'No graph attributes for user {identifier}')
 
-        yield Account(identifier=identifier, **data)
-
+        try:
+            yield Account(identifier=identifier, **data)
+        except TypeError:
+            raise TypeError(
+                f"Unabled to instantiate Account object "
+                f"with id {identifier} using data: {data}."
+            )

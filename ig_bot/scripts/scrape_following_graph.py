@@ -13,8 +13,6 @@ from networkx.exception import PowerIterationFailedConvergence
 import pandas as pd
 import yaml
 
-from igramscraper.instagram import Instagram
-
 from ig_bot.data import (
     Account,
     accounts_from_dataframe,
@@ -28,7 +26,6 @@ from ig_bot.graph import (
     IN_DEGREE_CENTRALITY,
 )
 from ig_bot.scraping import (
-    account_by_id,
     account_by_username,
     get_authenticated_igramscraper,
     followed_accounts,
@@ -95,7 +92,6 @@ def scrape_following_graph(
 ):
     # Create data directory if absent
     Path(data_dir).mkdir(parents=True, exist_ok=True)
-
     accounts_path = path.join(data_dir, 'accounts.csv')
     graph_path = path.join(data_dir, 'graph.gml')
 
@@ -116,10 +112,11 @@ def scrape_following_graph(
     ig_client = get_authenticated_igramscraper(**config['ig_auth'])
 
     if data_present:
-        logger.info("Data present in directory. Selecting scraping candidate...")
+        logger.info(
+            "Data present in directory. Looking for scraping candidate..."
+        )
         account = top_scraping_candidate(accounts_data,
                                          poorest_centrality_rank)
-        logger.info(f"Proceeding to scrape account {account.username}.")
 
     else:
         logger.info("Data not present in directory.")
@@ -130,8 +127,6 @@ def scrape_following_graph(
         accounts_data = accounts_to_dataframe([account])
         graph = nx.DiGraph()
         add_nodes(graph, account)
-
-        logger.info(f"Proceeding to scrape account {username}..")
 
     sleep_between_account_batches = config['sleep']['between_account_batches']
     sleep_between_accounts = config['sleep']['between_accounts']
@@ -253,34 +248,35 @@ def add_accounts_to_data(data: pd.DataFrame,
     return combined_data
 
 
-def update_centrality(data: pd.DataFrame, accounts: List[Account]):
-    all_accounts = accounts_from_dataframe(data)
+def update_centrality(accounts_data: pd.DataFrame,
+                      new_accounts: List[Account]) -> pd.DataFrame:
+    existing_accounts = accounts_from_dataframe(accounts_data)
     updated_accounts = list(
-        _accounts_with_centrality_from_summaries(all_accounts, accounts)
+        _centrality_from_new(existing_accounts, new_accounts)
     )
     updated_data = accounts_to_dataframe(updated_accounts)
     return updated_data.sort_values(by=['centrality'], ascending=False)
 
 
-def _accounts_with_centrality_from_summaries(
-    accounts: List[Account], summaries: List[Account]
-):
-    accounts_map = {account.identifier: account for account in accounts}
-    summaries_map = {summary.identifier: summary for summary in summaries}
+def _centrality_from_new(old: List[Account],
+                         new: List[Account]) -> Iterator[Account]:
+    old_accounts_map = {account.identifier: account for account in old}
+    new_accounts_map = {account.identifier: account for account in new}
 
-    for identifier, account in accounts_map.items():
-        summary = summaries_map.get(identifier)
+    for identifier, old_account in old_accounts_map.items():
+        new_account = new_accounts_map.get(identifier)
 
-        if summary:
-            account_data = asdict(account)
-            account_data['centrality'] = summary.centrality
+        if new_account:
+            account_data = asdict(old_account)
+            account_data['centrality'] = new_account.centrality
             yield Account(**account_data)
 
         else:
-            yield account
+            yield old_account
 
 
-def top_scraping_candidate(accounts_data: pd.DataFrame, total_scraped: int) -> Account:
+def top_scraping_candidate(accounts_data: pd.DataFrame,
+                           total_scraped: int) -> Account:
     sorted_data = accounts_data.sort_values(["centrality"], ascending=False)
     top_data = sorted_data.head(total_scraped)
     candidates = top_data[top_data.date_scraped.isnull()]
@@ -290,43 +286,8 @@ def top_scraping_candidate(accounts_data: pd.DataFrame, total_scraped: int) -> A
         # Overwriting Pandas NaT value
         row_data["date_scraped"] = None
         return Account(**row_data)
-
     except StopIteration:
         return None
-
-
-def full_accounts_with_centrality(summaries: Iterable[Account],
-                                  client: Instagram,
-                                  config: dict,
-                                  logger: logging.Logger):
-    # TODO: Move or delete as unused?
-    sleep_between_account_batches = config['sleep']['between_account_batches']
-    sleep_between_accounts = config['sleep']['between_accounts']
-    min_accounts_per_batch = config['accounts_per_batch']['minimum']
-    max_accounts_per_batch = config['accounts_per_batch']['maximum']
-
-    max_scraped_this_batch = randint(min_accounts_per_batch,
-                                     max_accounts_per_batch)
-    scraped_count = 0
-
-    for summary in summaries:
-        logger.info(f"Scraping data for account {summary.username}")
-
-        account_data = asdict(
-            account_by_id(summary.identifier, client, config=config, logger=logger)
-        )
-        account_data['centrality'] = summary.centrality
-        yield Account(**account_data)
-
-        scraped_count += 1
-        if scraped_count < max_scraped_this_batch:
-            random_sleep(**sleep_between_accounts, logger=logger)
-        else:
-            random_sleep(**sleep_between_account_batches, logger=logger)
-            scraped_count = 0
-            max_scraped_this_batch = randint(min_accounts_per_batch,
-                                             max_accounts_per_batch)
-
 
 if __name__ == '__main__':
     scrape_following_graph()

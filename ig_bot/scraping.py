@@ -96,4 +96,3 @@ def account_by_username(username: str,
                         logger: logging.Logger) -> Account:
 
     return account_from_obj(client.get_account(username))
-

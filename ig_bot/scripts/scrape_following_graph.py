@@ -178,7 +178,7 @@ def scrape_following_graph(
 
         account = top_scraping_candidate(accounts_data,
                                          poorest_centrality_rank)
- 
+
         scraped_this_batch += 1
         if scraped_this_batch < max_scraped_this_batch:
             random_sleep(**sleep_between_accounts, logger=logger)
@@ -331,4 +331,3 @@ def full_accounts_with_centrality(summaries: Iterable[Account],
 
 if __name__ == '__main__':
     scrape_following_graph()
-

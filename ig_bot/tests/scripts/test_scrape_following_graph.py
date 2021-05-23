@@ -463,8 +463,6 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         assert result.exit_code == 0
 
         accounts_data = pd.read_csv(accounts_path)
-        # TODO: delete line below when nolonger needed
-        accounts_data.to_csv('~/git/instagraph-bot/ig_bot/tests/scripts/data/top-three-accounts-actual.csv', index=False)
         assert accounts_data.equals(expected_accounts_data)
 
         graph = nx.read_gml(graph_path)

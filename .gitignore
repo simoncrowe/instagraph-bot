@@ -116,3 +116,6 @@ config.yaml
 /sessions/
 /instagraph_bot/sessions/
 /instagraph_bot/scripts/sessions/
+
+# Vim
+*.swp

@@ -11,7 +11,7 @@ mock==4.0.2
 networkx==2.3
 nltk==3.5
 pandas==1.1.0
-Pillow==7.1.2
+Pillow==8.1.1
 pytest==6.0.1
 PyYAML==5.4
 requests==2.23.0

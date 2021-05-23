@@ -11,12 +11,9 @@ import networkx as nx
 import pandas as pd
 import pytest
 
-from ig_bot.data import Account, AccountDetails, account_from_obj
-from ig_bot.graph import IN_DEGREE_CENTRALITY
-from ig_bot.scripts import scrape_following_graph
+from ig_bot.data import Account, account_from_obj
 from ig_bot.scripts.scrape_following_graph import (
     add_accounts_to_data,
-    full_accounts_with_centrality,
     novel_accounts,
     record_date_scraped,
     scrape_following_graph,
@@ -37,10 +34,12 @@ def account_one_data():
         'date_scraped': None,
     }
 
+
 @pytest.fixture
 def account_one_data_max_centrality(account_one_data):
     account_one_data['centrality'] = 1
     return account_one_data
+
 
 @pytest.fixture
 def account_one(account_one_data):
@@ -226,7 +225,6 @@ def test_record_scraping_date_sets_date_on_appropriate_row(
     assert resulting_data.equals(first_two_accounts_dataframe_both_scraped)
 
 
-
 def test_novel_accounts_includes_missing_account_summary(
     first_two_accounts_dataframe,
     account_three_summary,
@@ -246,9 +244,9 @@ def test_novel_accounts_filters_out_excess_account_summary(
     account_four_summary,
 ):
     accounts_filter = novel_accounts(first_two_accounts_dataframe,
-                                      [account_three_summary, 
-                                       account_four_summary],
-                                      1)
+                                     [account_three_summary,
+                                      account_four_summary],
+                                     1)
     accounts = list(accounts_filter)
 
     assert account_three_summary in accounts
@@ -281,7 +279,7 @@ def test_add_accounts_to_data_returns_full_dataframe(
 
 
 def test_top_scraping_candidate_returns_appropriate_account(
-	first_three_accounts_dataframe_first_two_scraped, account_three
+    first_three_accounts_dataframe_first_two_scraped, account_three
 ):
     resulting_account = top_scraping_candidate(
         first_three_accounts_dataframe_first_two_scraped, 3
@@ -297,17 +295,17 @@ def test_top_scraping_candidate_returns_none_if_max_accounts_already_scraped(
         first_three_accounts_dataframe_first_two_scraped, 2
     )
 
-    assert resulting_account == None
+    assert resulting_account is None
 
 
 def test_top_scraping_candidate_returns_none_if_all_accounts_scraped(
-	first_two_accounts_dataframe_both_scraped
+    first_two_accounts_dataframe_both_scraped
 ):
     resulting_account = top_scraping_candidate(
         first_two_accounts_dataframe_both_scraped, 3
     )
 
-    assert resulting_account == None
+    assert resulting_account is None
 
 
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
@@ -361,17 +359,15 @@ def test_scrape_graph_username_and_files_in_data_dir(*_):
 @patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
 @patch('ig_bot.graph.CENTRALITY_METRIC_FUNCTIONS')
 @patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
-@patch('ig_bot.scripts.scrape_following_graph.account_by_id')
 @patch('ig_bot.scripts.scrape_following_graph.account_by_username')
 @patch('ig_bot.scripts.scrape_following_graph._load_config')
 def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         mock_load_config,
         mock_account_by_username,
-        mock_account_by_id,
         mock_followed_accounts,
         mock_centrality_function_map,
-        _mock_get_authenticated_igramscraper,
-        _mock_time_sleep,
+        mock_get_authenticated_igramscraper,
+        mock_time_sleep,
         account_one,
         account_one_summary,
         account_two,
@@ -413,15 +409,6 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
 
     mock_account_by_username.side_effect = fake_account_by_username
 
-    def fake_account_by_id(identifier, *args, **kwargs):
-        return {
-            account_two.identifier: account_two,
-            account_three.identifier: account_three,
-            account_four.identifier: account_four,
-        }.get(identifier)
-
-    mock_account_by_id.side_effect = fake_account_by_id
-
     def fake_followed_accounts(account, *args, **kwargs):
         return {
             account_one.identifier: [account_two_summary],
@@ -439,10 +426,16 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
 
     mock_centrality_function_map.__getitem__.side_effect = fake_centrality_function_get
 
-    expected_graph_path = path.join(TEST_DATA_DIR, 'all-four-accounts.gml')
+    expected_graph_path = path.join(TEST_DATA_DIR,
+                                    'scrape_following_graph',
+                                    'expected_data_dir_with_username',
+                                    'all-four-accounts.gml')
     expected_graph = nx.read_gml(expected_graph_path)
 
-    expected_csv_path = path.join(TEST_DATA_DIR, 'top-three-accounts.csv')
+    expected_csv_path = path.join(TEST_DATA_DIR,
+                                  'scrape_following_graph',
+                                  'expected_data_dir_with_username',
+                                  'top-three-accounts.csv')
     expected_accounts_data = pd.read_csv(expected_csv_path)
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -469,3 +462,9 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         assert graph.nodes == expected_graph.nodes
         assert graph.edges == expected_graph.edges
 
+    mock_load_config.assert_called_once()
+    mock_account_by_username.assert_called()
+    mock_followed_accounts.assert_called()
+    mock_centrality_function_map.__getitem__.assert_called()
+    mock_get_authenticated_igramscraper.assert_called()
+    mock_time_sleep.assert_called()

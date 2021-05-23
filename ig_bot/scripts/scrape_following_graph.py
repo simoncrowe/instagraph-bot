@@ -35,7 +35,6 @@ from ig_bot.scraping import (
     random_sleep,
 )
 from ig_bot.scripts.util import (
-    get_graph_file_path,
     initialise_logger,
     load_dataframe_csv,
     save_dataframe_csv,

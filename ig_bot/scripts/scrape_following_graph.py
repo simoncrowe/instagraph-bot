@@ -1,7 +1,9 @@
-from dataclasses import asdict
+import csv
+from dataclasses import asdict, fields
 from datetime import datetime
-from itertools import islice
+from itertools import chain, islice
 import logging
+from operator import attrgetter
 from os import path
 from pathlib import Path
 from random import randint
@@ -10,7 +12,6 @@ from typing import Iterable, Iterator, List, Union
 import click
 import networkx as nx
 from networkx.exception import PowerIterationFailedConvergence
-import pandas as pd
 import yaml
 
 from ig_bot.data import (
@@ -31,13 +32,7 @@ from ig_bot.scraping import (
     followed_accounts,
     random_sleep,
 )
-from ig_bot.scripts.util import (
-    initialise_logger,
-    load_dataframe_csv,
-    save_dataframe_csv,
-    load_graph_gml,
-    save_graph_gml,
-)
+from ig_bot.scripts.util import initialise_logger, load_graph_gml, save_graph_gml
 
 
 def _load_graph(graph_path: str, logger: logging.Logger):
@@ -47,11 +42,23 @@ def _load_graph(graph_path: str, logger: logging.Logger):
         return None
 
 
-def _load_accounts(accounts_path: str, logger: logging.Logger):
+def _load_accounts(accounts_path: str, logger: logging.Logger) -> List[Account]:
     try:
-        return load_dataframe_csv(accounts_path, logger)
+        with open(accounts_path, 'r') as file_obj:
+            reader = csv.DictReader(file_obj, fieldnames=fields(Account))
+            return [Account(**row_data) for row_data in reader]
+
     except OSError:
         return None
+
+def _save_accounts(accounts: Iterable[Account],
+                   accounts_path: str,
+                   logger: logging.Logger):
+    with open(accounts_path, 'w') as file_obj:
+        writer = csv.DictWriter(file_obj, fieldnames=fields(Account))
+        writer.writeheader()
+        for account in accounts:
+            writer.writerow(asdict(account))
 
 
 def _get_logger(data_dir, log_level: str) -> logging.Logger:
@@ -112,9 +119,9 @@ def scrape_following_graph(data_dir: str,
     logger = _get_logger(data_dir, log_level)
 
     graph = _load_graph(graph_path, logger)
-    accounts_data = _load_accounts(accounts_path, logger)
+    accounts = _load_accounts(accounts_path, logger)
 
-    data_present = bool(graph) and accounts_data is not None
+    data_present = bool(graph) and accounts is not None
 
     if data_present == bool(username):
         raise ValueError(
@@ -137,7 +144,7 @@ def scrape_following_graph(data_dir: str,
                                       ig_client,
                                       config=config,
                                       logger=logger)
-        accounts_data = accounts_to_dataframe([account])
+        accounts = [account]
         graph = nx.DiGraph()
         add_nodes(graph, account)
 
@@ -159,8 +166,6 @@ def scrape_following_graph(data_dir: str,
         )
         logger.info(f"Scraped {len(followed)} accounts.")
 
-        accounts_data = record_date_scraped(accounts_data, account)
-
         logger.info("Adding new follows to graph...")
         add_nodes(graph, *followed)
         add_edges(graph, account, followed)
@@ -170,20 +175,19 @@ def scrape_following_graph(data_dir: str,
             "Detemining which highy ranked followed accounts are new..."
         )
         all_accounts = list(accounts_from_graph(graph, logger))
-        new_accounts = list(
-            novel_accounts(accounts_data,
-                           all_accounts,
-                           poorest_centrality_rank)
+        accounts_to_add = list(
+            relevant_new_accounts(accounts, all_accounts, poorest_centrality_rank)
         )
+
         logger.info(
-            f"Adding {len(new_accounts)} relevent followed accounts to CSV."
+            f"Adding {len(accounts_to_add)} relevent followed accounts to CSV."
         )
+        accounts_updated = record_date_scraped(accounts, account)
+        relevant_accounts = chain(accounts_updated, accounts_to_add)
+        accounts = update_centrality(relevant_accounts, all_accounts)
+        _save_accounts(accounts, accounts_path, logger)
 
-        accounts_data = add_accounts_to_data(accounts_data, new_accounts)
-        accounts_data = update_centrality(accounts_data, all_accounts)
-        save_dataframe_csv(accounts_data, accounts_path, logger, index=False)
-
-        account = top_scraping_candidate(accounts_data,
+        account = top_scraping_candidate(accounts,
                                          poorest_centrality_rank)
 
         scraped_this_batch += 1
@@ -199,23 +203,13 @@ def scrape_following_graph(data_dir: str,
 
 
 def record_date_scraped(
-    data: pd.DataFrame, account: Account
-) -> pd.DataFrame:
-    all_accounts = accounts_from_dataframe(data)
-    updated_accounts = list(
-        _accounts_date_scraped(all_accounts, account.identifier)
-    )
-    return accounts_to_dataframe(updated_accounts)
-
-
-def _accounts_date_scraped(
-    accounts: Iterable[Account], account_id: str
+    all_accounts: Iterable[Account], scraped_account: Account
 ) -> Iterator[Account]:
 
-    for account in accounts:
-        if account.identifier == account_id:
+    for account in all_accounts:
+        if account.identifier == scraped_account.identifier:
             account_data = asdict(account)
-            account_data['date_scraped'] = datetime.now()
+            account_data['date_scraped'] = datetime.utcnow()
             yield Account(**account_data)
         else:
             yield account
@@ -234,45 +228,35 @@ def accounts_from_graph(graph: nx.DiGraph,
         yield from accounts_with_centrality(graph, IN_DEGREE_CENTRALITY)
 
 
-def novel_accounts(data: pd.DataFrame,
-                   new_accounts: List[Account],
-                   accounts_retained: int) -> Iterator[Account]:
+def relevant_new_accounts(existing_accounts: List[Account],
+                              all_accounts: List[Account],
+                              accounts_retained: int) -> List[Account]:
 
-    accounts_by_centrality = sorted(new_accounts,
+    accounts_by_centrality = sorted(all_accounts,
                                     key=lambda a: a.centrality,
                                     reverse=True)
     relevant_ids = set(
         account.identifier
         for account in islice(accounts_by_centrality, accounts_retained)
     )
-    existing_ids = set(data['identifier'])
+    existing_ids = set(account.identifier for account in existing_accounts)
     new_account_ids = relevant_ids.difference(existing_ids)
 
     return (
-        account for account in new_accounts
+        account for account in all_accounts
         if account.identifier in new_account_ids
     )
 
 
-def add_accounts_to_data(data: pd.DataFrame,
-                         accounts: List[Account]) -> pd.DataFrame:
-    new_data = accounts_to_dataframe(accounts)
-    combined_data = pd.concat([data, new_data])
-    return combined_data
+def update_centrality(existing_accounts: Iterable[Account],
+                      new_accounts: Iterable[Account]) -> List[Account]:
+
+    updated_accounts = _centrality_from_new(existing_accounts, new_accounts)
+    return sorted(updated_accounts, key=attrgetter('centrality'), reverse=True)
 
 
-def update_centrality(accounts_data: pd.DataFrame,
-                      new_accounts: List[Account]) -> pd.DataFrame:
-    existing_accounts = accounts_from_dataframe(accounts_data)
-    updated_accounts = list(
-        _centrality_from_new(existing_accounts, new_accounts)
-    )
-    updated_data = accounts_to_dataframe(updated_accounts)
-    return updated_data.sort_values(by=['centrality'], ascending=False)
-
-
-def _centrality_from_new(old: List[Account],
-                         new: List[Account]) -> Iterator[Account]:
+def _centrality_from_new(old: Iterable[Account],
+                         new: Iterable[Account]) -> Iterator[Account]:
     old_accounts_map = {account.identifier: account for account in old}
     new_accounts_map = {account.identifier: account for account in new}
 
@@ -288,17 +272,17 @@ def _centrality_from_new(old: List[Account],
             yield old_account
 
 
-def top_scraping_candidate(accounts_data: pd.DataFrame,
+def top_scraping_candidate(accounts: Iterable[Account],
                            total_scraped: int) -> Account:
-    sorted_data = accounts_data.sort_values(["centrality"], ascending=False)
-    top_data = sorted_data.head(total_scraped)
-    candidates = top_data[top_data.date_scraped.isnull()]
-
+    sorted_accounts = sorted(accounts,
+                             key=attrgetter('centrality'),
+                             reverse=True)
+    top_accounts = islice(sorted_accounts, total_scraped)
     try:
-        row_data = next(candidates.itertuples(index=False))._asdict()
-        # Overwriting Pandas NaT value
-        row_data["date_scraped"] = None
-        return Account(**row_data)
+        return next(
+            account for account in top_accounts
+            if account.date_scraped is None
+        )
     except StopIteration:
         return None
 

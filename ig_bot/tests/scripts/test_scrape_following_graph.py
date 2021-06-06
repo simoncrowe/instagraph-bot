@@ -182,9 +182,7 @@ def test_record_scraping_date_sets_date_on_appropriate_row(
                              tick=False):
         resulting_accounts = list(record_date_scraped(accounts, account_two))
 
-    for result, expected in zip(resulting_accounts, expected_accounts):
-        assert result.identifier == expected.identifier
-        assert result.date_scraped == expected.date_scraped
+    assert resulting_accounts == expected_accounts
 
 
 def test_relevant_new_accounts_includes_missing_account(

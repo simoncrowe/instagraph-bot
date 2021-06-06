@@ -19,6 +19,7 @@ from ig_bot.scripts.scrape_following_graph import (
     novel_accounts,
     record_date_scraped,
     scrape_following_graph,
+    scrape_following_graph_command,
     top_scraping_candidate,
     update_centrality
 )
@@ -315,25 +316,25 @@ def test_top_scraping_candidate_returns_none_if_all_accounts_scraped(
 
 
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
-def test_scrape_graph_no_username_and_nonexistent_data_dir(_):
+def test_scrape_graph_command_no_username_and_nonexistent_data_dir(_):
     with tempfile.TemporaryDirectory() as temp_dir:
         data_path = path.join(temp_dir, 'this_dir_does_not_exist')
 
         command_args = [data_path]
-        result = CliRunner().invoke(scrape_following_graph, command_args)
+        result = CliRunner().invoke(scrape_following_graph_command, command_args)
 
         assert result.exit_code != 0
         assert isinstance(result.exception, ValueError)
 
 
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
-def test_scrape_graph_no_username_and_empty_data_dir(_):
+def test_scrape_graph_command_no_username_and_empty_data_dir(_):
     with tempfile.TemporaryDirectory() as temp_dir:
         data_path = path.join(temp_dir, 'data')
         mkdir(data_path)
 
         command_args = [data_path]
-        result = CliRunner().invoke(scrape_following_graph, command_args)
+        result = CliRunner().invoke(scrape_following_graph_command, command_args)
 
         assert result.exit_code != 0
         assert isinstance(result.exception, ValueError)
@@ -342,7 +343,9 @@ def test_scrape_graph_no_username_and_empty_data_dir(_):
 @patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
 @patch('ig_bot.scripts.scrape_following_graph.load_dataframe_csv')
 @patch('ig_bot.scripts.scrape_following_graph.load_graph_gml')
-def test_scrape_graph_username_and_files_in_data_dir(*_):
+def test_scrape_graph_command_username_and_files_in_data_dir(
+    mock_load_graph, mock_load_dataframe, mock_load_config
+):
     with tempfile.TemporaryDirectory() as temp_dir:
         data_path = path.join(temp_dir, 'data')
         mkdir(data_path)
@@ -354,10 +357,14 @@ def test_scrape_graph_username_and_files_in_data_dir(*_):
         open(accounts_path, 'w').close()
 
         command_args = [data_path, '--username', 'foo']
-        result = CliRunner().invoke(scrape_following_graph, command_args)
+        result = CliRunner().invoke(scrape_following_graph_command, command_args)
 
         assert result.exit_code != 0
         assert result.exception
+
+        mock_load_graph.assert_called_once()
+        mock_load_dataframe.assert_called_once()
+        mock_load_config.assert_called_once()
 
 
 @freeze_time("2020-10-04 18:08:25")
@@ -450,19 +457,14 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         graph_path = path.join(data_path, 'graph.gml')
         accounts_path = path.join(data_path, 'accounts.csv')
 
-        command_args = [
-            data_path,
-            '--username',
-            'one',
-            '--poorest-centrality-rank',
-            '3'
-        ]
-        result = CliRunner().invoke(scrape_following_graph, command_args)
-
-        assert not result.exception
-        assert result.exit_code == 0
+        scrape_following_graph(data_dir=data_path,
+                               username=account_one.username,
+                               poorest_centrality_rank=3,
+                               config_path='./config.yaml',
+                               log_level='INFO')
 
         accounts_data = pd.read_csv(accounts_path)
+        import ipdb; ipdb.set_trace()
         assert accounts_data.equals(expected_accounts_data)
 
         graph = nx.read_gml(graph_path)
@@ -573,11 +575,11 @@ def test_scrape_graph_updates_existing_data_dir(
         shutil.copy(starting_graph_path, graph_path)
         shutil.copy(starting_csv_path, accounts_path)
 
-        command_args = [data_path, '--poorest-centrality-rank', '4']
-        result = CliRunner().invoke(scrape_following_graph, command_args)
-        import ipdb; ipdb.set_trace()
-        assert not result.exception
-        assert result.exit_code == 0
+        scrape_following_graph(data_dir=data_path,
+                               username=None,
+                               poorest_centrality_rank=4,
+                               config_path='./config.yaml',
+                               log_level='INFO')
 
         accounts_data = pd.read_csv(accounts_path)
         assert accounts_data.equals(expected_accounts_data)

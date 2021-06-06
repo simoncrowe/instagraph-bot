@@ -111,6 +111,5 @@ def accounts_to_dataframe(accounts: List[Account]) -> pd.DataFrame:
         for field in fields(Account)
     }
     index = [account.identifier for account in accounts]
-
     return pd.DataFrame(data, index)
 

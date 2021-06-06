@@ -5,7 +5,7 @@ import logging
 from os import path
 from pathlib import Path
 from random import randint
-from typing import Iterable, Iterator, List
+from typing import Iterable, Iterator, List, Union
 
 import click
 import networkx as nx
@@ -83,13 +83,26 @@ def _load_config(config_path):
 )
 @click.option('--config-path', '-c', type=str, default='./config.yaml')
 @click.option('--log-level', '-l', type=str, default='INFO')
-def scrape_following_graph(
+def scrape_following_graph_command(
     data_dir,
     username,
     poorest_centrality_rank,
     config_path,
     log_level
 ):
+    scrape_following_graph(data_dir,
+                           username,
+                           poorest_centrality_rank,
+                           config_path,
+                           log_level)
+
+
+def scrape_following_graph(data_dir: str,
+                           username: Union[str, None],
+                           poorest_centrality_rank: int,
+                           config_path: str,
+                           log_level: str):
+
     # Create data directory if absent
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     accounts_path = path.join(data_dir, 'accounts.csv')
@@ -290,4 +303,4 @@ def top_scraping_candidate(accounts_data: pd.DataFrame,
         return None
 
 if __name__ == '__main__':
-    scrape_following_graph()
+    scrape_following_graph_command()

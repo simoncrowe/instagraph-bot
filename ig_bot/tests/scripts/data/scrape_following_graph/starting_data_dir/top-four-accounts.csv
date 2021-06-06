@@ -1,0 +1,5 @@
+identifier,username,full_name,centrality,date_scraped
+1,one,User One,0.6666666666666666,2020-10-04 18:08:25
+2,two,User Two,0.3333333333333333,2020-10-04 18:08:25
+3,three,User Three,0.3333333333333333,2020-10-04 18:08:25
+4,four,User Four,0,

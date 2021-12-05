@@ -2,8 +2,6 @@ ig_auth:
   username: foo 
   password: bar 
 
-rate_limit_retries: 5
-
 max_followed_scraped: 999
 follows_page_size: 50
 sleep:
@@ -16,3 +14,7 @@ sleep:
 accounts_per_batch:
   minimum: 16
   maximum: 32
+  
+  rate_limit_retries: 5
+exponential_sleep_base: 3
+exponential_sleep_offset: 15

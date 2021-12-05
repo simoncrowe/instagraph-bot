@@ -55,7 +55,8 @@ def _save_accounts(accounts: Iterable[Account],
                    accounts_path: str,
                    logger: logging.Logger):
     with open(accounts_path, 'w') as file_obj:
-        writer = csv.DictWriter(file_obj, fieldnames=fields(Account))
+        account_field_names = [field.name for field in fields(Account)]
+        writer = csv.DictWriter(file_obj, fieldnames=account_field_names)
         writer.writeheader()
         for account in accounts:
             writer.writerow(asdict(account))

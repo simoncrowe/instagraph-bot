@@ -110,7 +110,6 @@ venv.bak/
 instagraph_bot/data/
 instagraph_bot/logs/
 config.yaml
-*.gml
 
 # igramscraper
 /sessions/

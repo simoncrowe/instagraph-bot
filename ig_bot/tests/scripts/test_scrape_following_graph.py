@@ -357,12 +357,12 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
 
     account_by_username_map =  {account_one.username: account_one}
 
-    def fake_account_by_username(username, *args, **kwargs):
+    def account_by_username_stub(username, *args, **kwargs):
         if username not in account_by_username_map:
             raise InstagramNotFoundException
         return account_by_username_map[username]
 
-    mock_account_by_username.side_effect = fake_account_by_username
+    mock_account_by_username.side_effect = account_by_username_stub
 
     followed_map = {
         account_one.identifier: [account_two],
@@ -370,17 +370,17 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         account_three.identifier: [account_one, account_four],
     }
 
-    def fake_followed_accounts(account, *args, **kwargs):
+    def followed_accounts_stub(account, *args, **kwargs):
         if account.identifier not in followed_map:
             return list()
         return followed_map[account.identifier]
 
-    mock_followed_accounts.side_effect = fake_followed_accounts
+    mock_followed_accounts.side_effect = followed_accounts_stub
 
-    def fake_centrality_function_get(key):
+    def centrality_function_get_stub(key):
         return nx.in_degree_centrality
 
-    mock_centrality_function_map.__getitem__.side_effect = fake_centrality_function_get
+    mock_centrality_function_map.__getitem__.side_effect = centrality_function_get_stub
 
     expected_graph_path = path.join(TEST_DATA_DIR,
                                     'scrape_following_graph',

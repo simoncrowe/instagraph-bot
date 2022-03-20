@@ -45,8 +45,7 @@ def _load_graph(graph_path: str, logger: logging.Logger):
 def _load_accounts(accounts_path: str, logger: logging.Logger) -> List[Account]:
     try:
         with open(accounts_path, 'r') as file_obj:
-            field_names = [field.name for field in fields(Account)]
-            reader = csv.DictReader(file_obj, fieldnames=field_names)
+            reader = csv.DictReader(file_obj)
             return [Account(**row_data) for row_data in reader]
 
     except OSError:
@@ -166,6 +165,7 @@ def scrape_following_graph(data_dir: str,
         followed = list(
             followed_accounts(account, ig_client, config=config, logger=logger)
         )
+        #import ipdb; ipdb.set_trace()
         logger.info(f"Scraped {len(followed)} accounts.")
 
         logger.info("Adding new follows to graph...")
@@ -283,7 +283,7 @@ def top_scraping_candidate(accounts: Iterable[Account],
     try:
         return next(
             account for account in top_accounts
-            if account.date_scraped is None
+            if not account.date_scraped
         )
     except StopIteration:
         return None

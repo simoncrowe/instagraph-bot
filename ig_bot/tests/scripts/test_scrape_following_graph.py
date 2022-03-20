@@ -28,7 +28,7 @@ TEST_DATA_DIR = path.join(path.dirname(__file__), 'data')
 @pytest.fixture
 def account_one_data():
     return {
-        'identifier': 1,
+        'identifier': '1',
         'username': 'one',
         'full_name': 'User One',
         'centrality': 0.1,
@@ -64,7 +64,7 @@ def account_one_with_date_scraped(account_one_data_with_date_scraped):
 @pytest.fixture
 def account_two_data():
     return {
-        'identifier': 2,
+        'identifier': '2',
         'username': 'two',
         'full_name': 'User Two',
         'centrality': 0.04,
@@ -108,7 +108,7 @@ def account_two_max_centrality(account_two_data_max_centrality):
 @pytest.fixture
 def account_three_data():
     return {
-        'identifier': 3,
+        'identifier': '3',
         'username': 'three',
         'full_name': 'User Three',
         'centrality': 0.005,
@@ -124,7 +124,7 @@ def account_three(account_three_data):
 @pytest.fixture
 def account_four_data():
     return {
-        'identifier': 4,
+        'identifier': '4',
         'username': 'four',
         'full_name': 'User Four',
         'centrality': 0.001,
@@ -140,7 +140,7 @@ def account_four(account_four_data):
 @pytest.fixture
 def account_five_data():
     return {
-        'identifier': 5,
+        'identifier': '5',
         'username': 'five',
         'full_name': 'User Five',
         'centrality': 0,
@@ -156,7 +156,7 @@ def account_five(account_five_data):
 @pytest.fixture
 def account_six_data():
     return {
-        'identifier': 6,
+        'identifier': '6',
         'username': 'six',
         'full_name': 'User Six',
         'centrality': 0,
@@ -419,16 +419,14 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
     mock_get_authenticated_igramscraper.assert_called()
     mock_time_sleep.assert_called()
 
-@time_machine.travel("2020-10-04T18:08:25Z")
+@time_machine.travel("2020-10-04T18:08:25Z", tick=False)
 @mock.patch('ig_bot.scripts.scrape_following_graph.random_sleep')
 @mock.patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
 @mock.patch('ig_bot.graph.CENTRALITY_METRIC_FUNCTIONS')
 @mock.patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
-@mock.patch('ig_bot.scripts.scrape_following_graph.account_by_username')
 @mock.patch('ig_bot.scripts.scrape_following_graph._load_config')
 def test_scrape_graph_updates_existing_data_dir(
         mock_load_config,
-        mock_account_by_username,
         mock_followed_accounts,
         mock_centrality_function_map,
         mock_get_authenticated_igramscraper,
@@ -472,7 +470,8 @@ def test_scrape_graph_updates_existing_data_dir(
         account_two.identifier: [account_one, account_three],
         account_three.identifier: [account_one, account_four],
         account_four.identifier: [account_five, account_six],
-        account_five.identifier: [],
+        account_five.identifier: [account_four, account_two,
+                                  account_six],
         account_six.identifier: [account_one, account_three,
                                  account_four, account_five]
     }
@@ -504,7 +503,7 @@ def test_scrape_graph_updates_existing_data_dir(
     expected_csv_path = path.join(TEST_DATA_DIR,
                                   'scrape_following_graph',
                                   'expected_data_dir',
-                                  'top-four-accounts.csv')
+                                  'top-six-accounts.csv')
     expected_accounts_data = pd.read_csv(expected_csv_path)
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -518,7 +517,7 @@ def test_scrape_graph_updates_existing_data_dir(
 
         scrape_following_graph(data_dir=data_path,
                                username=None,
-                               poorest_centrality_rank=4,
+                               poorest_centrality_rank=5,
                                config_path='./config.yaml',
                                log_level='INFO')
 
@@ -530,7 +529,6 @@ def test_scrape_graph_updates_existing_data_dir(
         assert graph.edges == expected_graph.edges
 
     mock_load_config.assert_called_once()
-    mock_account_by_username.assert_not_called()
     mock_followed_accounts.assert_called()
     mock_centrality_function_map.__getitem__.assert_called()
     mock_get_authenticated_igramscraper.assert_called()

@@ -1,6 +1,4 @@
 from collections import defaultdict
-import logging
-from operator import itemgetter
 from typing import Generator, Iterable, Tuple
 
 import networkx as nx
@@ -17,21 +15,22 @@ CENTRALITY_METRIC_FUNCTIONS = {
 }
 
 
-def add_nodes(graph: nx.DiGraph, *nodes: Tuple[Account]):
+def add_nodes(graph: nx.DiGraph, *accounts: Tuple[Account]):
     """Adds nodes to graph for Account instance if not already present. """
     graph.add_nodes_from(
-        (node.identifier, account_to_camel_case(node))
-        for node in nodes
+        (account.identifier, account_to_camel_case(account))
+        for account in accounts
     )
 
 
-def add_edges(graph: nx.DiGraph, 
+def add_edges(graph: nx.DiGraph,
               source: Account,
               destinations: Iterable[Account]):
     graph.add_edges_from(
         (source.identifier, destination.identifier)
         for destination in destinations
     )
+
 
 def _combine(**attributes) -> defaultdict:
     """Combines node attribute dicts into dicts of dicts.
@@ -56,11 +55,7 @@ def accounts_with_centrality(
     data_by_id = _combine(centrality=centrality_function(graph),
                           username=nx.get_node_attributes(graph, 'username'),
                           full_name=nx.get_node_attributes(graph, 'fullName'))
-
     for identifier, data in data_by_id.items():
-        if not data:
-            print(f'No graph attributes for user {identifier}')
-
         try:
             yield Account(identifier=identifier, **data)
         except TypeError:

@@ -1,8 +1,8 @@
 import functools
 import logging
-from random import random, randint
+from random import random
 import time
-from typing import Dict, Generator, List
+from typing import Generator
 
 from igramscraper.instagram import Instagram
 from igramscraper.exception import InstagramException
@@ -18,7 +18,6 @@ def get_authenticated_igramscraper(username: str, password: str):
     """Gets an authenticated igramscraper Instagram client instance."""
     client = Instagram()
     client.with_credentials(username, password)
-    #client.login(two_step_verificator=True)
     client.login(two_step_verificator=False)
     return client
 
@@ -66,8 +65,8 @@ def retry_on_rate_limiting(func):
 @retry_on_rate_limiting
 def followed_accounts(
         follower: Account,
-        client: Instagram, 
-        config: dict, 
+        client: Instagram,
+        config: dict,
         logger: logging.Logger
 ) -> Generator[Account, None, None]:
     response = client.get_following(
@@ -78,7 +77,7 @@ def followed_accounts(
 
     accounts = response['accounts'] if 'accounts' in response else []
     return (account_from_obj(account) for account in accounts)
-       
+
 
 @retry_on_rate_limiting
 def account_by_id(identifier: str,

@@ -1,7 +1,5 @@
-from collections import defaultdict
-from dataclasses import asdict, dataclass, fields
+from dataclasses import dataclass, fields
 from datetime import datetime
-from itertools import chain
 from typing import Generator, Iterable, List
 
 import pandas as pd
@@ -60,6 +58,7 @@ class AccountDetails:
     centrality: float = None
     date_scraped: datetime = None
 
+
 def account_details_from_obj(obj):
     return AccountDetails(
         identifier=obj.identifier,
@@ -112,4 +111,3 @@ def accounts_to_dataframe(accounts: List[Account]) -> pd.DataFrame:
     }
     index = [account.identifier for account in accounts]
     return pd.DataFrame(data, index)
-

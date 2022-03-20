@@ -3,42 +3,42 @@ graph [
   node [
     id 0
     label "1"
-    identifier 1
+    identifier "1"
     username "one"
     fullName "User One"
   ]
   node [
     id 1
     label "2"
-    identifier 2
+    identifier "2"
     username "two"
     fullName "User Two"
   ]
   node [
     id 2
     label "3"
-    identifier 3
+    identifier "3"
     username "three"
     fullName "User Three"
   ]
   node [
     id 3
     label "4"
-    identifier 4
+    identifier "4"
     username "four"
     fullName "User Four"
   ]
   node [
     id 4
     label "5"
-    identifier 5
+    identifier "5"
     username "five"
     fullName "User Five"
   ]
   node [
     id 5
     label "6"
-    identifier 6
+    identifier "6"
     username "six"
     fullName "User Six"
   ]
@@ -68,6 +68,18 @@ graph [
   ]
   edge [
     source 3
+    target 5
+  ]
+  edge [
+    source 4
+    target 3
+  ]
+  edge [
+    source 4
+    target 1 
+  ]
+  edge [
+    source 4
     target 5
   ]
   edge [

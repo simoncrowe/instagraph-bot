@@ -45,7 +45,8 @@ def _load_graph(graph_path: str, logger: logging.Logger):
 def _load_accounts(accounts_path: str, logger: logging.Logger) -> List[Account]:
     try:
         with open(accounts_path, 'r') as file_obj:
-            reader = csv.DictReader(file_obj, fieldnames=fields(Account))
+            field_names = [field.name for field in fields(Account)]
+            reader = csv.DictReader(file_obj, fieldnames=field_names)
             return [Account(**row_data) for row_data in reader]
 
     except OSError:
@@ -136,7 +137,7 @@ def scrape_following_graph(data_dir: str,
         logger.info(
             "Data present in directory. Looking for scraping candidate..."
         )
-        account = top_scraping_candidate(accounts_data,
+        account = top_scraping_candidate(accounts,
                                          poorest_centrality_rank)
 
     else:

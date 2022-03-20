@@ -1,8 +1,8 @@
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from itertools import chain
-from mock import patch
 from os import mkdir, path
+from unittest import mock
 import shutil
 import tempfile
 
@@ -255,7 +255,7 @@ def test_top_scraping_candidate_returns_none_if_all_accounts_scraped(
     assert resulting_account is None
 
 
-@patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
+@mock.patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
 def test_scrape_graph_command_no_username_and_nonexistent_data_dir(
     mock_load_config
 ):
@@ -271,7 +271,7 @@ def test_scrape_graph_command_no_username_and_nonexistent_data_dir(
     mock_load_config.assert_called_once()
 
 
-@patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
+@mock.patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
 def test_scrape_graph_command_no_username_and_empty_data_dir(_):
     with tempfile.TemporaryDirectory() as temp_dir:
         data_path = path.join(temp_dir, 'data')
@@ -284,8 +284,8 @@ def test_scrape_graph_command_no_username_and_empty_data_dir(_):
         assert isinstance(result.exception, ValueError)
 
 
-@patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
-@patch('ig_bot.scripts.scrape_following_graph.load_graph_gml')
+@mock.patch('ig_bot.scripts.scrape_following_graph._load_config', return_value={})
+@mock.patch('ig_bot.scripts.scrape_following_graph.load_graph_gml')
 def test_scrape_graph_command_username_and_files_in_data_dir(
     mock_load_graph, mock_load_config
 ):
@@ -309,13 +309,13 @@ def test_scrape_graph_command_username_and_files_in_data_dir(
         mock_load_config.assert_called_once()
 
 
-@time_machine.travel("2020-10-04 18:08:25")
-@patch('ig_bot.scripts.scrape_following_graph.random_sleep')
-@patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
-@patch('ig_bot.graph.CENTRALITY_METRIC_FUNCTIONS')
-@patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
-@patch('ig_bot.scripts.scrape_following_graph.account_by_username')
-@patch('ig_bot.scripts.scrape_following_graph._load_config')
+@time_machine.travel("2020-10-04T18:08:25Z", tick=False)
+@mock.patch('ig_bot.scripts.scrape_following_graph.random_sleep')
+@mock.patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
+@mock.patch('ig_bot.graph.CENTRALITY_METRIC_FUNCTIONS')
+@mock.patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
+@mock.patch('ig_bot.scripts.scrape_following_graph.account_by_username')
+@mock.patch('ig_bot.scripts.scrape_following_graph._load_config')
 def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
         mock_load_config,
         mock_account_by_username,
@@ -419,13 +419,13 @@ def test_scrape_graph_writes_graph_and_data_to_dir_with_username(
     mock_get_authenticated_igramscraper.assert_called()
     mock_time_sleep.assert_called()
 
-@time_machine.travel("2020-10-04 18:08:25")
-@patch('ig_bot.scripts.scrape_following_graph.random_sleep')
-@patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
-@patch('ig_bot.graph.CENTRALITY_METRIC_FUNCTIONS')
-@patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
-@patch('ig_bot.scripts.scrape_following_graph.account_by_username')
-@patch('ig_bot.scripts.scrape_following_graph._load_config')
+@time_machine.travel("2020-10-04T18:08:25Z")
+@mock.patch('ig_bot.scripts.scrape_following_graph.random_sleep')
+@mock.patch('ig_bot.scripts.scrape_following_graph.get_authenticated_igramscraper')
+@mock.patch('ig_bot.graph.CENTRALITY_METRIC_FUNCTIONS')
+@mock.patch('ig_bot.scripts.scrape_following_graph.followed_accounts')
+@mock.patch('ig_bot.scripts.scrape_following_graph.account_by_username')
+@mock.patch('ig_bot.scripts.scrape_following_graph._load_config')
 def test_scrape_graph_updates_existing_data_dir(
         mock_load_config,
         mock_account_by_username,

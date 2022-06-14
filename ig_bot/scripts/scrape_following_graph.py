@@ -119,6 +119,8 @@ def scrape_following_graph(data_dir: str,
     config = _load_config(config_path)
     logger = _get_logger(data_dir, log_level)
 
+    ig_client = get_authenticated_igramscraper(**config['ig_auth'])
+
     graph = _load_graph(graph_path, logger)
     accounts = _load_accounts(accounts_path, logger)
 
@@ -129,8 +131,6 @@ def scrape_following_graph(data_dir: str,
             'Either a data directory with existing data must be '
             'provided or a username, not both nor neither.'
         )
-
-    ig_client = get_authenticated_igramscraper(**config['ig_auth'])
 
     if data_present:
         logger.info(

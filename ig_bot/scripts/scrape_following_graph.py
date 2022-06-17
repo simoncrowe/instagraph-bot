@@ -1,12 +1,12 @@
 import csv
+import logging
+import random
 from dataclasses import asdict, fields
 from datetime import datetime
 from itertools import chain, islice
-import logging
 from operator import attrgetter
 from os import path
 from pathlib import Path
-from random import randint
 from typing import Iterable, Iterator, List, Union
 
 import click
@@ -28,7 +28,7 @@ from ig_bot.graph import (
 )
 from ig_bot.scraping import (
     account_by_username,
-    get_authenticated_igramscraper,
+    get_authenticated_client,
     followed_accounts,
     random_sleep,
 )
@@ -118,8 +118,9 @@ def scrape_following_graph(data_dir: str,
 
     config = _load_config(config_path)
     logger = _get_logger(data_dir, log_level)
-
-    ig_client = get_authenticated_igramscraper(**config['ig_auth'])
+    
+    credentials = random.choice(config['ig_credentials'])
+    ig_client = get_authenticated_client(**credentials)
 
     graph = _load_graph(graph_path, logger)
     accounts = _load_accounts(accounts_path, logger)
@@ -154,8 +155,8 @@ def scrape_following_graph(data_dir: str,
     min_accounts_per_batch = config['accounts_per_batch']['minimum']
     max_accounts_per_batch = config['accounts_per_batch']['maximum']
 
-    max_scraped_this_batch = randint(min_accounts_per_batch,
-                                     max_accounts_per_batch)
+    max_scraped_this_batch = random.randint(min_accounts_per_batch,
+                                            max_accounts_per_batch)
     scraped_this_batch = 0
 
     while account:
@@ -198,8 +199,8 @@ def scrape_following_graph(data_dir: str,
         else:
             random_sleep(**sleep_between_account_batches, logger=logger)
             scraped_this_batch = 0
-            max_scraped_this_batch = randint(min_accounts_per_batch,
-                                             max_accounts_per_batch)
+            max_scraped_this_batch = random.randint(min_accounts_per_batch,
+                                                    max_accounts_per_batch)
 
     logger.info("All relevantly high ranking accounts scraped. Exiting.")
 

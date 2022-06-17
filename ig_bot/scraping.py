@@ -8,17 +8,17 @@ from igramscraper.instagram import Instagram
 from igramscraper.exception import InstagramException
 
 from ig_bot.data import Account, account_from_obj
+import instagrapi
 
 
 class MaxRateLimitingRetriesExceeded(Exception):
     """The service still rate limits after the maxiumum number of attempts."""
 
 
-def get_authenticated_igramscraper(username: str, password: str):
-    """Gets an authenticated igramscraper Instagram client instance."""
-    client = Instagram()
-    client.with_credentials(username, password)
-    client.login(two_step_verificator=True)
+def get_authenticated_client(username: str, password: str):
+    """Gets an authenticated client instance."""
+    client = instagrapi.Client()
+    client.login(username, password)
     return client
 
 
@@ -44,15 +44,11 @@ def retry_on_rate_limiting(func):
         for attempt_number in range(1, retries + 1):
             try:
                 return func(*args, config=config, logger=logger, **kwargs)
-            except InstagramException as exception:
-                if '429' in str(exception):
-                    logger.exception("Scraping failed due to rate limiting")
-
-                    base = config['exponential_sleep_base']
-                    offset = config['exponential_sleep_offset']
-                    exponential_sleep(attempt_number, base, offset, logger)
-                else:
-                    raise
+            except instagrapi.exceptions.ClientError as exception:
+                logger.exception(f"Scraping failed: {exception}")
+                base = config['exponential_sleep_base']
+                offset = config['exponential_sleep_offset']
+                exponential_sleep(attempt_number, base, offset, logger)
 
         raise MaxRateLimitingRetriesExceeded(
             f"Function {func.__name__} still failed due to rate limiting "
@@ -65,33 +61,30 @@ def retry_on_rate_limiting(func):
 @retry_on_rate_limiting
 def followed_accounts(
         follower: Account,
-        client: Instagram,
+        client: instagrapi.Client,
         config: dict,
         logger: logging.Logger
 ) -> Generator[Account, None, None]:
-    response = client.get_following(
-        account_id=follower.identifier,
-        count=config['max_followed_scraped'],
-        page_size=config['follows_page_size'],
+    results = client.user_following(
+        follower.identifier,
+        amount=config['max_followed_scraped'],
     )
-
-    accounts = response['accounts'] if 'accounts' in response else []
-    return (account_from_obj(account) for account in accounts)
+    return (account_from_obj(account) for account in results.values())
 
 
 @retry_on_rate_limiting
 def account_by_id(identifier: str,
-                  client: Instagram,
+                  client: instagrapi.Client,
                   config: dict,
                   logger: logging.Logger) -> Account:
 
-    return account_from_obj(client.get_account_by_id(identifier))
+    return account_from_obj(client.user_info(identifier))
 
 
 @retry_on_rate_limiting
 def account_by_username(username: str,
-                        client: Instagram,
+                        client: instagrapi.Client,
                         config: dict,
                         logger: logging.Logger) -> Account:
 
-    return account_from_obj(client.get_account(username))
+    return account_from_obj(client.user_info_by_username(username))

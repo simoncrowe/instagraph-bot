@@ -16,7 +16,7 @@ class Account:
 
 def account_from_obj(obj):
     return Account(
-        identifier=obj.identifier,
+        identifier=obj.pk,
         username=obj.username,
         full_name=obj.full_name,
         centrality=getattr(obj, 'centrality', None),

@@ -65,11 +65,11 @@ def followed_accounts(
         config: dict,
         logger: logging.Logger
 ) -> Generator[Account, None, None]:
-    results = client.user_following(
+    results = client.user_following_v1(
         follower.identifier,
         amount=config['max_followed_scraped'],
     )
-    return (account_from_obj(account) for account in results.values())
+    return (account_from_obj(account) for account in results)
 
 
 @retry_on_rate_limiting

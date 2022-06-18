@@ -120,6 +120,7 @@ def scrape_following_graph(data_dir: str,
     logger = _get_logger(data_dir, log_level)
     
     credentials = random.choice(config['ig_credentials'])
+    logger.info(f'Authenticating as {credentials["username"]}')
     ig_client = get_authenticated_client(**credentials)
 
     graph = _load_graph(graph_path, logger)

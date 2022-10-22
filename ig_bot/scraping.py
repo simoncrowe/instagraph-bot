@@ -4,8 +4,6 @@ from random import random
 import time
 from typing import Generator
 
-from igramscraper.instagram import Instagram
-from igramscraper.exception import InstagramException
 
 from ig_bot.data import Account, account_from_obj
 import instagrapi

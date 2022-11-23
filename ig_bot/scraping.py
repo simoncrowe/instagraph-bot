@@ -13,6 +13,11 @@ class MaxRateLimitingRetriesExceeded(Exception):
     """The service still rate limits after the maxiumum number of attempts."""
 
 
+class NotFound(Exception):
+    """Client cannot find an account."""
+
+
+
 def get_authenticated_client(username: str, password: str):
     """Gets an authenticated client instance."""
     client = instagrapi.Client()
@@ -43,7 +48,10 @@ def retry_on_rate_limiting(func):
             try:
                 return func(*args, config=config, logger=logger, **kwargs)
             except instagrapi.exceptions.ClientError as exception:
-                logger.exception(f"Scraping failed: {exception}")
+                if "404 Client Error" in str(exception):
+                    raise NotFound("404 when attempting to get resource. It was probably deleted.")
+
+                logger.error(f"Scraping failed: {exception}")
                 base = config['exponential_sleep_base']
                 offset = config['exponential_sleep_offset']
                 exponential_sleep(attempt_number, base, offset, logger)

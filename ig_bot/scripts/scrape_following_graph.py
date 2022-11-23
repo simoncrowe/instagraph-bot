@@ -30,6 +30,7 @@ from ig_bot.scraping import (
     account_by_username,
     get_authenticated_client,
     followed_accounts,
+    NotFound,
     random_sleep,
 )
 from ig_bot.scripts.util import initialise_logger, load_graph_gml, save_graph_gml
@@ -164,10 +165,13 @@ def scrape_following_graph(data_dir: str,
         logger.info(
             f"Scraping accounts followed by {account.username}..."
         )
-        followed = list(
-            followed_accounts(account, ig_client, config=config, logger=logger)
-        )
-        #import ipdb; ipdb.set_trace()
+        try:
+            followed = list(
+                followed_accounts(account, ig_client, config=config, logger=logger)
+            )
+        except NotFound:
+            logger.warning(f"Could not find followed accounts for account {account.username}")
+            followed = []
         logger.info(f"Scraped {len(followed)} accounts.")
 
         logger.info("Adding new follows to graph...")

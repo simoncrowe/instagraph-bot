@@ -51,6 +51,19 @@ def load_graph_gml(
     return graph
 
 
+def load_graph_graphml(
+        filepath: str,
+        logger: logging.Logger
+) -> nx.DiGraph:
+    logger.info(f'Loading graph from {filepath}')
+
+    with open(filepath, 'rb') as fileobj:
+        graph = nx.read_graphml(fileobj)
+
+    logger.info('Graph file loaded.')
+    return graph
+
+
 def save_dataframe_csv(
         df: pd.DataFrame,
         filepath: str,

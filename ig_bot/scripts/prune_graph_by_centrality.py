@@ -5,14 +5,13 @@ from os import path
 import click
 import networkx as nx
 
-from graph import CENTRALITY_METRIC_FUNCTIONS
+from ig_bot.graph import CENTRALITY_METRIC_FUNCTIONS
 
-from scripts.util import initialise_logger, save_graph_gml
+from ig_bot.scripts.util import initialise_logger, save_graph_gml
 
 
 @click.command()
-@click.option(
-    '--graph', '-g', 'graph_path', required=True, help='Path to GML file.')
+@click.argument('data_dir')
 @click.option(
     '--importance-measure',
     '-i',
@@ -46,18 +45,21 @@ from scripts.util import initialise_logger, save_graph_gml
     is_flag=True,
     help='Include this tag if you do not want to retain node attributes.'
 )
+@click.option('--config-path', '-c', type=str, default='./config.yaml')
 @click.option('--log-level', '-l', type=str, default='DEBUG')
 def prune_graph(
-        graph_path: str,
+        data_dir: str,
         importance_measure: str,
         accounts_retained: int,
         max_followers: int,
         omit_attributes: bool,
-        log_level: str
+        config_path: str,
+        log_level: str,
 ):
-    with open('config.yaml') as file_obj:
+    with open(config_path) as file_obj:
         config = yaml.safe_load(file_obj)
 
+    graph_path = path.join(data_dir, "graph.gml")
     base_file_name = (
         f'{path.splitext(path.basename(graph_path))[0]}_'
         f'pruned-to-{accounts_retained}'
@@ -68,12 +70,11 @@ def prune_graph(
         base_file_name += '_no-attrs'
 
     logger = initialise_logger(
-        directory=config['logs_directory'],
+        directory=data_dir,
         name=base_file_name,
         module='instagraph_bot.scripts.prune_graph_by_centrality',
         level=log_level,
     )
-
     graph = nx.read_gml(graph_path)
 
     # Negative value for max_followers mean that here is not maximum
@@ -105,7 +106,6 @@ def prune_graph(
             for key in list(data.keys()):
                 del graph.node[identifier][key]
 
-    data_dir = config['data_directory']
     save_graph_gml(
         graph=graph,
         filepath=path.join(data_dir, f'{base_file_name}.gml'),

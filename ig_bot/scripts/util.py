@@ -70,14 +70,14 @@ def save_dataframe_csv(
         logger: logging.Logger,
         index=True,
 ) -> None:
-    df.to_csv(filepath, index=index)
+    df.to_csv(filepath, index=index, encoding="utf-8")
     logger.info(f'DataFrame saved to {filepath}.')
 
 
 def load_dataframe_csv(filepath: str, logger: logging.Logger) -> pd.DataFrame:
     logger.info(f'Loading DataFrame from {filepath}')
 
-    with open(filepath, 'r') as fileobj:
+    with open(filepath, 'r', encoding="utf-8") as fileobj:
         dataframe = pd.read_csv(fileobj)
 
     logger.info("CSV file loaded.")

@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import csv
 import logging
 import random
@@ -45,7 +46,7 @@ def _load_graph(graph_path: str, logger: logging.Logger):
 
 def _load_accounts(accounts_path: str, logger: logging.Logger) -> List[Account]:
     try:
-        with open(accounts_path, 'r') as file_obj:
+        with open(accounts_path, 'r', encoding="utf-8") as file_obj:
             reader = csv.DictReader(file_obj)
             return [Account(**row_data) for row_data in reader]
 
@@ -55,7 +56,7 @@ def _load_accounts(accounts_path: str, logger: logging.Logger) -> List[Account]:
 def _save_accounts(accounts: Iterable[Account],
                    accounts_path: str,
                    logger: logging.Logger):
-    with open(accounts_path, 'w') as file_obj:
+    with open(accounts_path, 'w', encoding="utf-8") as file_obj:
         account_field_names = [field.name for field in fields(Account)]
         writer = csv.DictWriter(file_obj, fieldnames=account_field_names)
         writer.writeheader()
@@ -90,18 +91,21 @@ def _load_config(config_path):
         'rather than a limit of the total number of accounts scraped.'
     )
 )
+@click.option('--scraping-username', '-s', type=str)
 @click.option('--config-path', '-c', type=str, default='./config.yaml')
 @click.option('--log-level', '-l', type=str, default='INFO')
 def scrape_following_graph_command(
     data_dir,
     username,
     poorest_centrality_rank,
+    scraping_username,
     config_path,
     log_level
 ):
     scrape_following_graph(data_dir,
                            username,
                            poorest_centrality_rank,
+                           scraping_username,
                            config_path,
                            log_level)
 
@@ -109,6 +113,7 @@ def scrape_following_graph_command(
 def scrape_following_graph(data_dir: str,
                            username: Union[str, None],
                            poorest_centrality_rank: int,
+                           scraping_username: Union[str, None],
                            config_path: str,
                            log_level: str):
 
@@ -119,8 +124,15 @@ def scrape_following_graph(data_dir: str,
 
     config = _load_config(config_path)
     logger = _get_logger(data_dir, log_level)
-    
-    credentials = random.choice(config['ig_credentials'])
+
+    if scraping_username:
+        credentials = next(
+            creds for creds in config['ig_credentials'] 
+            if creds['username'] == scraping_username
+        )
+    else:
+        credentials = random.choice(config['ig_credentials'])
+
     logger.info(f'Authenticating as {credentials["username"]}')
     ig_client = get_authenticated_client(**credentials)
 
@@ -286,13 +298,13 @@ def top_scraping_candidate(accounts: Iterable[Account],
                              key=attrgetter('centrality'),
                              reverse=True)
     top_accounts = islice(sorted_accounts, total_scraped)
-    try:
-        return next(
-            account for account in top_accounts
-            if not account.date_scraped
-        )
-    except StopIteration:
-        return None
+    
+    for i, account in enumerate(top_accounts, start=1):
+        if not account.date_scraped:
+            print(f"Selected {account.username} (ranked {i}) for scraping")
+            return account
+
+    return None
 
 if __name__ == '__main__':
     scrape_following_graph_command()

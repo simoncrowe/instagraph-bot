@@ -71,7 +71,7 @@ def followed_accounts(
         config: dict,
         logger: logging.Logger
 ) -> Generator[Account, None, None]:
-    results = client.user_following_v1(
+    results = client.user_following_gql(
         follower.identifier,
         amount=config['max_followed_scraped'],
     )

@@ -118,3 +118,6 @@ config.yaml
 
 # Vim
 *.swp
+
+# Windows
+*~

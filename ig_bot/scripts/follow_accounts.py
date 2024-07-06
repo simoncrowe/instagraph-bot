@@ -63,9 +63,9 @@ def follow_accounts(
 
     sleep_between_accounts = config['sleep']['between_accounts']
     for _ in range(random.randint(minimum, maximum)):
+        account_data = None
         with open(nodes_path, "r") as file_obj:
             nodes = json.load(file_obj)
-            account_data = None
             while account_data is None:
                 node = nodes.pop(random.randint(0, len(nodes)-1))
                 try:
@@ -78,6 +78,7 @@ def follow_accounts(
         with open(nodes_path, "w") as file_obj:
             json.dump(nodes, file_obj)
         
+        ig_client.user_follow(account_data["user_id"])
         logger.info(
             f"Followed {account_data['username']}..."
         )

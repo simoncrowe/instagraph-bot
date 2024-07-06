@@ -52,16 +52,16 @@ def generate_visualisation_input(data_dir: str,
 
     logger = _get_logger(data_dir, log_level)
     
-    graph = _load_graph(graph_path, logger)
     accounts = _load_accounts(accounts_path, logger)
-
-    if not (graph and accounts):
+    if not accounts:
         logger.error("Data not present in directory.")
         exit(1)
 
+    graph = _load_graph(graph_path, logger)
+
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     nodes_path = path.join(output_dir, "nodes.json")
-    edges_path = path.join(output_dir, "edges.bin")
+    edges_path = path.join(output_dir, "targets.bin")
 
     indices_by_account = list(enumerate(accounts, start=0))[:node_count]
     indices_by_identifier = {account.identifier: index
@@ -81,17 +81,19 @@ def generate_visualisation_input(data_dir: str,
             node_data = {"rank": index + 1,
                          "username": account.username,
                          "name": account.full_name,
-                         "x": x_locs[account.identifier],
-                         "y": y_locs[account.identifier]} 
+                         "x": x_locs[account.identifier], 
+                         "y": y_locs[account.identifier]}
             nodes_data.append(node_data)
-            edges_from = graph.edges(account.identifier)
-            for origin_id, target_id in edges_from:
-                if target_index := indices_by_identifier.get(target_id):
-                    fileobj.write(struct.pack("<H", target_index))
-            
-            if index != node_count:
-                # Use max unsigned 16 bit int as delimiter
-                fileobj.write(struct.pack("<H", 65535))
+            if graph:
+                edges_from = graph.edges(account.identifier)
+                for origin_id, target_id in edges_from:
+                    target_identifier = graph.nodes[target_id]["identifier"]
+                    if target_index := indices_by_identifier.get(target_identifier):
+                        fileobj.write(struct.pack("<H", target_index))
+                
+                if index != node_count:
+                    # Use max unsigned 16 bit int as delimiter
+                    fileobj.write(struct.pack("<H", 65535))
     
     with open(nodes_path, "w") as fileobj:
         json.dump(nodes_data, fileobj)

@@ -3,6 +3,7 @@ import logging
 from random import random
 import time
 from typing import Generator
+from os import path
 
 
 from ig_bot.data import Account, account_from_obj
@@ -24,6 +25,52 @@ def get_authenticated_client(username: str, password: str):
     client.login(username, password)
     return client
 
+
+def get_authenticated_client_from_session(username: str, password: str, session_path: str, logger: logging.Logger):
+    cl = instagrapi.Client()
+    
+    if not path.exists(session_path):
+        cl.dump_settings(session_path)
+
+    session = cl.load_settings(session_path)
+
+    login_via_session = False
+    login_via_pw = False
+
+    if session:
+        try:
+            cl.set_settings(session)
+            cl.login(username, password)
+
+            # check if session is valid
+            try:
+                cl.get_timeline_feed()
+            except LoginRequired:
+                logger.info("Session is invalid, need to login via username and password")
+
+                old_session = cl.get_settings()
+
+                # use the same device uuids across logins
+                cl.set_settings({})
+                cl.set_uuids(old_session["uuids"])
+
+                cl.login(username, password)
+            login_via_session = True
+        except Exception as e:
+            logger.info("Couldn't login user using session information: %s" % e)
+
+    if not login_via_session:
+        try:
+            logger.info("Attempting to login via username and password. username: %s" % username)
+            if cl.login(username, password):
+                login_via_pw = True
+        except Exception as e:
+            logger.info("Couldn't login user using username and password: %s" % e)
+
+    if not login_via_pw and not login_via_session:
+        raise Exception("Couldn't login user with either password or session") 
+    
+    return cl 
 
 def random_sleep(minimum: float, maximum: float, logger: logging.Logger):
     duration = round(minimum + (random() * (maximum - minimum)), 2)

@@ -78,7 +78,11 @@ def follow_accounts(
         with open(nodes_path, "w") as file_obj:
             json.dump(nodes, file_obj)
         
-        ig_client.user_follow(account_data["user_id"])
+        try:
+            ig_client.user_follow(account_data["user_id"])
+        except:
+            logger.exception("Failed to follow")
+        
         logger.info(
             f"Followed {account_data['username']}..."
         )
